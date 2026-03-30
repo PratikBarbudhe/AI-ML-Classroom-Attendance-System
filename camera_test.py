@@ -1,22 +1,24 @@
 import cv2
 import tkinter as tk
 from tkinter import messagebox, ttk
+import logging
+from camera_utils import open_camera, test_camera_frame
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
+LOGGER = logging.getLogger("camera_test")
 
 def test_camera(camera_index=0):
     """Test camera and display feed"""
     try:
-        # Try with DirectShow backend on Windows
-        cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
-        
-        if not cap.isOpened():
+        cap, backend = open_camera(camera_index)
+        if cap is None or not cap.isOpened():
             print(f"Error: Could not open camera with index {camera_index}")
             return False
-            
-        # Try to set properties
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-        
-        print(f"Camera {camera_index} opened successfully")
+
+        print(f"Camera {camera_index} opened successfully (backend: {backend})")
         print("Press 'q' to quit")
         
         while True:
@@ -45,6 +47,7 @@ def test_camera(camera_index=0):
         return True
         
     except Exception as e:
+        LOGGER.exception("Camera stream test failed")
         print(f"Error: {str(e)}")
         return False
 
@@ -98,14 +101,11 @@ def camera_tester_app():
         
         for idx in range(4):  # Test camera indexes 0-3
             try:
-                cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
-                if cap.isOpened():
-                    ret, frame = cap.read()
-                    if ret:
-                        found_cameras.append(idx)
-                cap.release()
-            except:
-                pass
+                success, _, _ = test_camera_frame(idx)
+                if success:
+                    found_cameras.append(idx)
+            except Exception:
+                LOGGER.exception("Failed while probing camera index %s", idx)
         
         if found_cameras:
             status_label.config(text=f"Found working cameras at indexes: {found_cameras}")

@@ -3,7 +3,7 @@ import subprocess
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-def install_package(package, progress_var=None, status_label=None):
+def install_package(package, status_label=None):
     """Install a package using pip"""
     try:
         if status_label:
@@ -30,18 +30,24 @@ def main():
     title_label.pack(pady=10)
     
     # Description
-    description = tk.Label(main_frame, text="This will install the required packages for the face recognition system.")
+    description = tk.Label(
+        main_frame,
+        text="Install dependencies for your selected app mode.",
+        justify=tk.LEFT
+    )
     description.pack(pady=10)
     
     # Version selection
     version_frame = tk.LabelFrame(main_frame, text="Select Version")
     version_frame.pack(fill=tk.X, pady=10)
     
-    version_var = tk.StringVar(value="simple")
-    tk.Radiobutton(version_frame, text="Simple Detection Only (recommended)", 
+    version_var = tk.StringVar(value="lbph")
+    tk.Radiobutton(version_frame, text="Simple Detection Only (most compatible)", 
                   variable=version_var, value="simple").pack(anchor=tk.W, padx=10, pady=5)
-    tk.Radiobutton(version_frame, text="Full Recognition System (requires OpenCV contrib)", 
-                  variable=version_var, value="full").pack(anchor=tk.W, padx=10, pady=5)
+    tk.Radiobutton(version_frame, text="Recognition (LBPH/OpenCV contrib) - recommended", 
+                  variable=version_var, value="lbph").pack(anchor=tk.W, padx=10, pady=5)
+    tk.Radiobutton(version_frame, text="Advanced Recognition (face_recognition + dlib)", 
+                  variable=version_var, value="advanced").pack(anchor=tk.W, padx=10, pady=5)
     
     # Progress frame
     progress_frame = tk.LabelFrame(main_frame, text="Installation Progress")
@@ -59,26 +65,44 @@ def main():
         version = version_var.get()
         install_button.config(state=tk.DISABLED)
         
-        packages = ["numpy", "pillow", "opencv-python"]
-        if version == "full":
-            packages.append("opencv-contrib-python")
+        package_sets = {
+            "simple": ["numpy", "pillow", "opencv-python", "setuptools>=58.0.0"],
+            "lbph": ["numpy", "pillow", "opencv-python", "opencv-contrib-python", "setuptools>=58.0.0"],
+            "advanced": ["numpy", "pillow", "opencv-python", "dlib", "face-recognition", "setuptools>=58.0.0"],
+        }
+        packages = package_sets[version]
         
         total_packages = len(packages)
+        success_count = 0
         
         for i, package in enumerate(packages):
             progress_var.set((i / total_packages) * 100)
             root.update()
             
-            success = install_package(package, progress_var, status_label)
+            success = install_package(package, status_label)
             if not success:
-                messagebox.showerror("Installation Error", f"Failed to install {package}. Please try manually.")
-                break
+                messagebox.showerror(
+                    "Installation Error",
+                    f"Failed to install {package}.\n\nTry upgrading pip first:\n"
+                    "python -m pip install --upgrade pip"
+                )
+                status_label.config(text="Installation interrupted due to an error.")
+                install_button.config(state=tk.NORMAL)
+                return
+            success_count += 1
         
         progress_var.set(100)
-        status_label.config(text="Installation completed!")
-        messagebox.showinfo("Installation Complete", "Dependencies installed successfully.\n\n" + 
-                          ("Run face_recognition_app_simplified.py for the full version\n" if version == "full" else "") +
-                          "Run simple_detection_only.py for the simple version.")
+        status_label.config(text=f"Installation completed ({success_count}/{total_packages} packages).")
+
+        next_step = {
+            "simple": "Run: python simple_detection_only.py",
+            "lbph": "Run: python face_recognition_app_simplified.py",
+            "advanced": "Run: python face_recognition_app.py",
+        }[version]
+        messagebox.showinfo(
+            "Installation Complete",
+            f"Dependencies installed successfully.\n\n{next_step}"
+        )
         install_button.config(state=tk.NORMAL)
     
     install_button = tk.Button(main_frame, text="Install Dependencies", command=start_installation)

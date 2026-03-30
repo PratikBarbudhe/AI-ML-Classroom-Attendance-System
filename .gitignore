@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+.venv/
+venv/
+
+data/faces/**
+!data/faces/.gitkeep
+
+data/models/*.xml
+data/models/*.pkl
+!data/models/.gitkeep
+
+.DS_Store

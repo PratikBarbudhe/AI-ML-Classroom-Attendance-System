@@ -7,6 +7,14 @@ from PIL import Image, ImageTk
 import threading
 import pickle
 import time
+import logging
+from camera_utils import open_camera, test_camera_frame
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
+LOGGER = logging.getLogger("face_recognition_app_simplified")
 
 class FaceRecognitionAppSimplified:
     def __init__(self, root):
@@ -169,37 +177,20 @@ class FaceRecognitionAppSimplified:
         """Test if camera can be accessed"""
         try:
             camera_idx = int(self.camera_var.get())
-            
-            # Try different backends
-            for backend in [cv2.CAP_DSHOW, cv2.CAP_ANY]:
-                try:
-                    cap = cv2.VideoCapture(camera_idx, backend)
-                    
-                    if not cap.isOpened():
-                        continue
-                    
-                    ret, frame = cap.read()
-                    if not ret:
-                        cap.release()
-                        continue
-                    
-                    # Success
-                    messagebox.showinfo("Success", f"Camera {camera_idx} is working correctly")
-                    
-                    # Show a single frame
-                    cv2.imshow('Camera Test', frame)
-                    cv2.waitKey(2000)  # Wait for 2 seconds
-                    cv2.destroyAllWindows()
-                    
-                    cap.release()
-                    return
-                except:
-                    continue
-            
-            # If we get here, all backends failed
+            success, frame, backend = test_camera_frame(camera_idx)
+            if success and frame is not None:
+                messagebox.showinfo(
+                    "Success",
+                    f"Camera {camera_idx} is working correctly (backend: {backend})"
+                )
+                cv2.imshow('Camera Test', frame)
+                cv2.waitKey(2000)
+                cv2.destroyAllWindows()
+                return
             messagebox.showerror("Error", f"Could not open camera with index {camera_idx}")
             
         except Exception as e:
+            LOGGER.exception("Camera test failed")
             messagebox.showerror("Error", f"Camera test failed: {str(e)}")
     
     def start_capture(self):
@@ -242,19 +233,7 @@ class FaceRecognitionAppSimplified:
         """Thread function for capturing face samples"""
         person_dir = os.path.join(self.faces_dir, self.current_person)
         
-        # Try different backends
-        cap = None
-        for backend in [cv2.CAP_DSHOW, cv2.CAP_ANY]:
-            try:
-                cap = cv2.VideoCapture(self.camera_index, backend)
-                if cap.isOpened():
-                    ret, test_frame = cap.read()
-                    if ret:
-                        break  # Found a working backend
-                cap.release()
-                cap = None
-            except:
-                continue
+        cap, _ = open_camera(self.camera_index)
         
         if cap is None or not cap.isOpened():
             self.root.after(0, lambda: messagebox.showerror("Error", 
@@ -337,6 +316,7 @@ class FaceRecognitionAppSimplified:
             self.root.after(0, self.reset_ui)
             
         except Exception as e:
+            LOGGER.exception("Capture thread failed")
             if cap is not None:
                 cap.release()
             cv2.destroyAllWindows()
@@ -365,7 +345,7 @@ class FaceRecognitionAppSimplified:
             return True
             
         except Exception as e:
-            print(f"Error capturing face sample: {str(e)}")
+            LOGGER.exception("Error capturing face sample")
             return False
     
     def train_model(self):
@@ -500,19 +480,7 @@ class FaceRecognitionAppSimplified:
     
     def recognition_thread(self):
         """Thread function for face recognition"""
-        # Try different backends
-        cap = None
-        for backend in [cv2.CAP_DSHOW, cv2.CAP_ANY]:
-            try:
-                cap = cv2.VideoCapture(self.camera_index, backend)
-                if cap.isOpened():
-                    ret, test_frame = cap.read()
-                    if ret:
-                        break  # Found a working backend
-                cap.release()
-                cap = None
-            except:
-                continue
+        cap, _ = open_camera(self.camera_index)
         
         if cap is None or not cap.isOpened():
             self.root.after(0, lambda: messagebox.showerror("Error", 
@@ -566,7 +534,8 @@ class FaceRecognitionAppSimplified:
                         cv2.rectangle(frame, (x, y-25), (x+w, y), (0, 255, 0), -1)
                         cv2.putText(frame, f"{name} ({conf_text})", (x+6, y-6),
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
-                    except:
+                    except Exception:
+                        LOGGER.exception("Recognizer prediction failed for a detected face")
                         # If recognition fails, just show the face
                         cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
                 
@@ -588,6 +557,7 @@ class FaceRecognitionAppSimplified:
             self.root.after(0, self.reset_ui)
             
         except Exception as e:
+            LOGGER.exception("Recognition thread failed")
             if cap is not None:
                 cap.release()
             cv2.destroyAllWindows()

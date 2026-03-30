@@ -3,6 +3,14 @@ import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import threading
+import logging
+from camera_utils import open_camera, test_camera_frame
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
+LOGGER = logging.getLogger("simple_detection_only")
 
 class SimpleDetectionApp:
     def __init__(self, root):
@@ -64,27 +72,17 @@ class SimpleDetectionApp:
         """Test if camera can be accessed"""
         try:
             camera_idx = int(self.camera_var.get())
-            cap = cv2.VideoCapture(camera_idx, cv2.CAP_DSHOW)  # Use DirectShow on Windows
-            
-            if not cap.isOpened():
+            success, frame, backend = test_camera_frame(camera_idx)
+            if not success or frame is None:
                 messagebox.showerror("Error", f"Could not open camera with index {camera_idx}")
-                cap.release()
                 return
-            
-            ret, frame = cap.read()
-            if not ret:
-                messagebox.showerror("Error", f"Could not read frame from camera {camera_idx}")
-            else:
-                messagebox.showinfo("Success", f"Camera {camera_idx} is working correctly")
-                
-                # Show a single frame
-                cv2.imshow('Camera Test', frame)
-                cv2.waitKey(2000)  # Wait for 2 seconds
-                cv2.destroyAllWindows()
-            
-            cap.release()
+            messagebox.showinfo("Success", f"Camera {camera_idx} is working correctly (backend: {backend})")
+            cv2.imshow('Camera Test', frame)
+            cv2.waitKey(2000)
+            cv2.destroyAllWindows()
             
         except Exception as e:
+            LOGGER.exception("Camera test failed")
             messagebox.showerror("Error", f"Camera test failed: {str(e)}")
     
     def start_detection(self):
@@ -109,9 +107,7 @@ class SimpleDetectionApp:
     
     def detection_thread(self):
         """Thread function for face detection"""
-        cap = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        cap, _ = open_camera(self.camera_index)
         
         if not cap.isOpened():
             self.root.after(0, lambda: messagebox.showerror("Error", 
@@ -159,6 +155,7 @@ class SimpleDetectionApp:
             self.root.after(0, self.reset_ui)
             
         except Exception as e:
+            LOGGER.exception("Detection thread failed")
             cap.release()
             cv2.destroyAllWindows()
             self.root.after(0, lambda: messagebox.showerror("Error", f"An error occurred: {str(e)}"))

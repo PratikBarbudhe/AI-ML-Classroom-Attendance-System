@@ -1,26 +1,28 @@
 # Face Detection and Recognition System
 
-A Python application for face detection and recognition using OpenCV.
+A Python application for classroom-oriented face detection and recognition using OpenCV.
 
 ## Quick Start Guide
 
 ### 1. Run the installer
 
-```
+```bash
 python install_dependencies.py
 ```
 
 This will open a GUI installer that helps install the needed packages.
 
-### 2. Choose the right version for your system
+### 2. Choose the right mode in installer
 
-- **Simple Detection** - Just detects faces (works on all systems)
-- **Full Recognition** - Detects AND recognizes faces with names (requires additional dependencies)
+- **Simple Detection** - just detects faces (most compatible)
+- **Recognition (LBPH/OpenCV contrib)** - detects and recognizes faces with names (recommended)
+- **Advanced Recognition (face_recognition + dlib)** - highest accuracy path, requires dlib build support
 
-## Usage - Full Recognition System
+## Usage - Recognition (LBPH) System
 
 1. Run the recognition app:
-   ```
+
+   ```bash
    python face_recognition_app_simplified.py
    ```
 
@@ -38,15 +40,23 @@ This will open a GUI installer that helps install the needed packages.
    - Click "Start Recognition"
    - Detected faces will show with recognized names
 
+## Usage - Advanced Recognition (face_recognition + dlib)
+
+If you installed advanced dependencies:
+
+```bash
+python face_recognition_app.py
+```
+
 ## Usage - Simple Detection
 
-If the full system doesn't work, use the simplified detection:
+If recognition mode doesn't work, use detection-only mode:
 
-```
+```bash
 python simple_detection_only.py
 ```
 
-This just detects faces (no recognition or names) and works without opencv-contrib.
+This only detects faces (no recognition or names) and works without OpenCV contrib.
 
 ## Troubleshooting
 
@@ -60,23 +70,33 @@ This just detects faces (no recognition or names) and works without opencv-contr
 
 If automatic installation doesn't work:
 
-1. Manually install dependencies:
-   ```
-   pip install opencv-python numpy pillow
+1. Manually install base dependencies:
+
+   ```bash
+   pip install opencv-python numpy pillow setuptools
    ```
 
-2. For full recognition features:
-   ```
+2. For LBPH recognition features:
+
+   ```bash
    pip install opencv-contrib-python
    ```
 
-3. If that fails, try installing an older version:
+3. For advanced recognition features:
+
+   ```bash
+   pip install dlib face-recognition
    ```
+
+4. If `opencv-contrib-python` fails, try an older version:
+
+   ```bash
    pip install opencv-contrib-python==4.5.5.64
    ```
 
 ### Runtime Errors
 
-- **AttributeError with face recognition**: Your OpenCV doesn't have contrib modules installed
+- **AttributeError with face recognition**: OpenCV contrib modules are missing
+- **dlib install fails**: use LBPH mode (`face_recognition_app_simplified.py`) instead
 - **Could not open camera**: Try a different camera index or check if another app is using the camera
-- **Application crashes**: Try the simple detection version which has fewer dependencies 
+- **Application crashes**: Try the simple detection version which has fewer dependencies
