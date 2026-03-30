@@ -39,6 +39,11 @@ This will open a GUI installer that helps install the needed packages.
 4. Start recognition:
    - Click "Start Recognition"
    - Detected faces will show with recognized names
+   - Attendance is automatically logged to SQLite (deduplicated by person/time window)
+
+5. Export attendance:
+   - Use `Export Today CSV` in the app dashboard
+   - Exported files are saved in `data/attendance/exports`
 
 ## Usage - Advanced Recognition (face_recognition + dlib)
 
@@ -100,3 +105,9 @@ If automatic installation doesn't work:
 - **dlib install fails**: use LBPH mode (`face_recognition_app_simplified.py`) instead
 - **Could not open camera**: Try a different camera index or check if another app is using the camera
 - **Application crashes**: Try the simple detection version which has fewer dependencies
+
+## Attendance Storage
+
+- Database path: `data/attendance/attendance.db`
+- Table stores: person name, timestamp, confidence, and source
+- CSV exports are generated from today's records

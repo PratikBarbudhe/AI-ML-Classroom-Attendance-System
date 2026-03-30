@@ -13,4 +13,7 @@ data/models/*.xml
 data/models/*.pkl
 !data/models/.gitkeep
 
+data/attendance/*.db
+data/attendance/exports/*.csv
+
 .DS_Store

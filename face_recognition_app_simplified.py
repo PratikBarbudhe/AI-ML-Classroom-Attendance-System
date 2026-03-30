@@ -9,6 +9,7 @@ import pickle
 import time
 import logging
 from camera_utils import open_camera, test_camera_frame
+from attendance_utils import AttendanceStore
 
 logging.basicConfig(
     level=logging.INFO,
@@ -35,11 +36,13 @@ class FaceRecognitionAppSimplified:
         self.auto_capture = False   # For auto capture mode
         self.auto_capture_interval = 1.0  # Seconds between auto captures
         self.last_capture_time = 0
+        self.last_attendance_text = "No attendance marked yet"
         
         # Data paths
         self.data_dir = "data"
         self.faces_dir = os.path.join(self.data_dir, "faces")
         self.model_path = os.path.join(self.data_dir, "models", "face_model.pkl")
+        self.attendance_store = AttendanceStore()
         
         # Create directories if they don't exist
         os.makedirs(self.faces_dir, exist_ok=True)
@@ -82,6 +85,20 @@ class FaceRecognitionAppSimplified:
         
         self.status_label = tk.Label(status_frame, text="Checking model status...", font=("Arial", 10))
         self.status_label.pack(pady=5)
+
+        # Attendance dashboard
+        attendance_frame = tk.LabelFrame(self.top_frame, text="Attendance Dashboard")
+        attendance_frame.pack(fill=tk.X, pady=5)
+        self.total_events_label = tk.Label(attendance_frame, text="Today's events: 0", font=("Arial", 10))
+        self.total_events_label.grid(row=0, column=0, padx=8, pady=4, sticky=tk.W)
+        self.unique_people_label = tk.Label(attendance_frame, text="Unique people: 0", font=("Arial", 10))
+        self.unique_people_label.grid(row=0, column=1, padx=8, pady=4, sticky=tk.W)
+        self.last_event_label = tk.Label(attendance_frame, text=self.last_attendance_text, font=("Arial", 10))
+        self.last_event_label.grid(row=1, column=0, columnspan=2, padx=8, pady=4, sticky=tk.W)
+        self.export_button = tk.Button(attendance_frame, text="Export Today CSV", command=self.export_today_attendance)
+        self.export_button.grid(row=0, column=2, padx=8, pady=4)
+        self.view_log_button = tk.Button(attendance_frame, text="View Today Log", command=self.view_today_log)
+        self.view_log_button.grid(row=1, column=2, padx=8, pady=4)
         
         # Image display
         self.image_label = tk.Label(self.main_frame, bg="black")
@@ -147,6 +164,7 @@ class FaceRecognitionAppSimplified:
         
         # Check model status
         self.check_model_status()
+        self.update_attendance_dashboard()
     
     def check_model_status(self):
         """Check if a trained model exists and update status"""
@@ -154,6 +172,68 @@ class FaceRecognitionAppSimplified:
             self.status_label.config(text="Model loaded successfully. Ready for recognition.")
         else:
             self.status_label.config(text="No trained model found. Please capture samples and train the model.")
+
+    def update_attendance_dashboard(self):
+        """Refresh attendance statistics displayed in the UI."""
+        try:
+            summary = self.attendance_store.get_today_summary()
+            self.total_events_label.config(text=f"Today's events: {summary['total_events']}")
+            self.unique_people_label.config(text=f"Unique people: {summary['unique_people']}")
+            last_event = summary["last_event"]
+            if last_event:
+                self.last_event_label.config(
+                    text=(
+                        f"Last marked: {last_event['person_name']} at "
+                        f"{last_event['recognized_at']} (conf: {last_event['confidence']:.1f})"
+                    )
+                )
+            else:
+                self.last_event_label.config(text="No attendance marked yet")
+        except Exception:
+            LOGGER.exception("Failed to update attendance dashboard")
+
+        self.root.after(5000, self.update_attendance_dashboard)
+
+    def mark_attendance_event(self, person_name, confidence):
+        """Mark attendance with cooldown to avoid duplicate entries."""
+        try:
+            marked, message = self.attendance_store.mark_attendance(
+                person_name=person_name,
+                confidence=confidence,
+                source="webcam",
+                min_interval_seconds=60,
+            )
+            if marked:
+                LOGGER.info(message)
+        except Exception:
+            LOGGER.exception("Failed to mark attendance for %s", person_name)
+
+    def export_today_attendance(self):
+        """Export today's attendance to CSV."""
+        try:
+            output_path, row_count = self.attendance_store.export_today_csv()
+            messagebox.showinfo("Export Complete", f"Exported {row_count} rows to:\n{output_path}")
+        except Exception as exc:
+            messagebox.showerror("Export Error", f"Could not export attendance: {exc}")
+
+    def view_today_log(self):
+        """Show a quick view of recent attendance records."""
+        try:
+            records = self.attendance_store.get_today_records()
+            if not records:
+                messagebox.showinfo("Today Log", "No attendance records found for today.")
+                return
+            preview = "\n".join(
+                [
+                    f"{item['recognized_at']} | {item['person_name']} | conf={item['confidence']:.1f}"
+                    for item in records[:20]
+                ]
+            )
+            if len(records) > 20:
+                preview += f"\n... and {len(records) - 20} more"
+            messagebox.showinfo("Today Log", preview)
+        except Exception as exc:
+            messagebox.showerror("Log Error", f"Could not load attendance log: {exc}")
     
     def load_model(self):
         """Load a previously trained face recognition model"""
@@ -521,6 +601,8 @@ class FaceRecognitionAppSimplified:
                         # Get the name from the label
                         if confidence < 70:  # Lower confidence is better
                             name = self.name_dict.get(label, "Unknown")
+                            if name != "Unknown":
+                                self.mark_attendance_event(name, confidence)
                         else:
                             name = "Unknown"
                         
