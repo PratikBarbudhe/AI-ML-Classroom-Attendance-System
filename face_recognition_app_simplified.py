@@ -8,6 +8,7 @@ import threading
 import pickle
 import time
 import logging
+import csv
 from camera_utils import open_camera, test_camera_frame
 from attendance_utils import AttendanceStore
 
@@ -20,21 +21,21 @@ LOGGER = logging.getLogger("face_recognition_app_simplified")
 class FaceRecognitionAppSimplified:
     def __init__(self, root):
         self.root = root
-        self.root.title("Face Recognition System")
-        self.root.geometry("800x600")
+        self.root.title("AI Classroom Attendance System")
+        self.root.geometry("900x700")
         
         # Variables
         self.thread = None
         self.stop_threads = False
         self.is_processing = False
-        self.camera_index = 0  # Default camera index
+        self.camera_index = 0
         self.sample_count = 0
-        self.max_samples = 10
+        self.max_samples = 30  # Increased for better accuracy
         self.current_person = ""
-        self.model_trained = False  # Initialize this before loading model
+        self.model_trained = False
         self.name_dict = {}
-        self.auto_capture = False   # For auto capture mode
-        self.auto_capture_interval = 1.0  # Seconds between auto captures
+        self.auto_capture = False
+        self.auto_capture_interval = 0.5  # Faster capture
         self.last_capture_time = 0
         self.last_attendance_text = "No attendance marked yet"
         
@@ -42,20 +43,25 @@ class FaceRecognitionAppSimplified:
         self.data_dir = "data"
         self.faces_dir = os.path.join(self.data_dir, "faces")
         self.model_path = os.path.join(self.data_dir, "models", "face_model.pkl")
+        self.students_csv = os.path.join(self.data_dir, "students.csv")
         self.attendance_store = AttendanceStore()
         
         # Create directories if they don't exist
         os.makedirs(self.faces_dir, exist_ok=True)
         os.makedirs(os.path.join(self.data_dir, "models"), exist_ok=True)
+        os.makedirs(os.path.dirname(self.students_csv), exist_ok=True)
         
-        # Face detection
-        self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        # Face detection with better parameters
+        self.face_cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+        )
         
-        # Face recognition
+        # Face recognition with improved LBPH parameters
         try:
-            self.recognizer = cv2.face.LBPHFaceRecognizer_create()
+            self.recognizer = cv2.face.LBPHFaceRecognizer_create(
+                radius=2, neighbors=8, grid_x=8, grid_y=8, threshold=80
+            )
             self.load_model()
-            # Create GUI
             self.create_widgets()
         except AttributeError:
             messagebox.showerror("Error", "OpenCV contrib modules not installed. Please run: pip install opencv-contrib-python")
@@ -65,54 +71,63 @@ class FaceRecognitionAppSimplified:
             root.destroy()
         
     def create_widgets(self):
+        """Create all GUI widgets"""
         # Create main frames
-        self.top_frame = tk.Frame(self.root, height=100)
+        self.top_frame = tk.Frame(self.root, height=120)
         self.top_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=10)
         
         self.main_frame = tk.Frame(self.root)
         self.main_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        self.control_frame = tk.Frame(self.root, height=150)
+        self.control_frame = tk.Frame(self.root, height=200)
         self.control_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=10)
         
         # Title
-        title_label = tk.Label(self.top_frame, text="Face Recognition System", font=("Arial", 24, "bold"))
+        title_label = tk.Label(self.top_frame, text="AI Classroom Attendance System", font=("Arial", 24, "bold"))
         title_label.pack(pady=10)
         
         # Status frame
-        status_frame = tk.LabelFrame(self.top_frame, text="Model Status")
+        status_frame = tk.LabelFrame(self.top_frame, text="📊 Model Status", font=("Arial", 10, "bold"))
         status_frame.pack(fill=tk.X, pady=5)
         
-        self.status_label = tk.Label(status_frame, text="Checking model status...", font=("Arial", 10))
+        self.status_label = tk.Label(status_frame, text="Checking model status...", font=("Arial", 10), fg="blue")
         self.status_label.pack(pady=5)
 
         # Attendance dashboard
-        attendance_frame = tk.LabelFrame(self.top_frame, text="Attendance Dashboard")
+        attendance_frame = tk.LabelFrame(self.top_frame, text="📈 Attendance Dashboard", font=("Arial", 10, "bold"))
         attendance_frame.pack(fill=tk.X, pady=5)
+        
         self.total_events_label = tk.Label(attendance_frame, text="Today's events: 0", font=("Arial", 10))
         self.total_events_label.grid(row=0, column=0, padx=8, pady=4, sticky=tk.W)
+        
         self.unique_people_label = tk.Label(attendance_frame, text="Unique people: 0", font=("Arial", 10))
         self.unique_people_label.grid(row=0, column=1, padx=8, pady=4, sticky=tk.W)
+        
         self.last_event_label = tk.Label(attendance_frame, text=self.last_attendance_text, font=("Arial", 10))
         self.last_event_label.grid(row=1, column=0, columnspan=2, padx=8, pady=4, sticky=tk.W)
-        self.export_button = tk.Button(attendance_frame, text="Export Today CSV", command=self.export_today_attendance)
+        
+        self.export_button = tk.Button(attendance_frame, text="📥 Export CSV", command=self.export_today_attendance, bg="#4CAF50", fg="white")
         self.export_button.grid(row=0, column=2, padx=8, pady=4)
-        self.view_log_button = tk.Button(attendance_frame, text="View Today Log", command=self.view_today_log)
+        
+        self.view_log_button = tk.Button(attendance_frame, text="📋 View Log", command=self.view_today_log, bg="#2196F3", fg="white")
         self.view_log_button.grid(row=1, column=2, padx=8, pady=4)
         
         # Image display
-        self.image_label = tk.Label(self.main_frame, bg="black")
+        self.image_label = tk.Label(self.main_frame, bg="black", text="Camera Feed", fg="white", font=("Arial", 12))
         self.image_label.pack(fill=tk.BOTH, expand=True)
         
         # Control frames
         left_control = tk.Frame(self.control_frame)
         left_control.pack(side=tk.LEFT, fill=tk.Y, expand=True, padx=5)
         
+        middle_control = tk.Frame(self.control_frame)
+        middle_control.pack(side=tk.LEFT, fill=tk.Y, expand=True, padx=5)
+        
         right_control = tk.Frame(self.control_frame)
         right_control.pack(side=tk.RIGHT, fill=tk.Y, expand=True, padx=5)
         
-        # Left side - Camera settings
-        camera_frame = tk.LabelFrame(left_control, text="Camera Settings")
+        # LEFT: Camera settings
+        camera_frame = tk.LabelFrame(left_control, text="🎥 Camera Settings", font=("Arial", 10, "bold"))
         camera_frame.pack(fill=tk.X, pady=5)
         
         camera_label = tk.Label(camera_frame, text="Camera Index:")
@@ -123,58 +138,190 @@ class FaceRecognitionAppSimplified:
         camera_combobox['values'] = ('0', '1', '2', '3')
         camera_combobox.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
         
-        self.test_camera_button = tk.Button(camera_frame, text="Test Camera", command=self.test_camera)
+        self.test_camera_button = tk.Button(camera_frame, text="Test Camera", command=self.test_camera, bg="#FF9800", fg="white")
         self.test_camera_button.grid(row=0, column=2, padx=5, pady=5)
         
-        # Person frame - for capturing samples
-        person_frame = tk.LabelFrame(left_control, text="Capture Face Samples")
+        # MIDDLE: Person capture frame
+        person_frame = tk.LabelFrame(middle_control, text="📸 Capture Face Samples", font=("Arial", 10, "bold"))
         person_frame.pack(fill=tk.X, pady=5)
         
-        person_label = tk.Label(person_frame, text="Person Name:")
+        person_label = tk.Label(person_frame, text="Student ID:")
         person_label.grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
         
-        self.person_entry = tk.Entry(person_frame, width=15)
-        self.person_entry.grid(row=0, column=1, padx=5, pady=5)
+        self.person_id_entry = tk.Entry(person_frame, width=10)
+        self.person_id_entry.grid(row=0, column=1, padx=5, pady=5)
         
-        self.capture_button = tk.Button(person_frame, text="Capture Samples", command=self.start_capture)
-        self.capture_button.grid(row=0, column=2, padx=5, pady=5)
+        person_name_label = tk.Label(person_frame, text="Name:")
+        person_name_label.grid(row=1, column=0, padx=5, pady=5, sticky=tk.W)
+        
+        self.person_entry = tk.Entry(person_frame, width=15)
+        self.person_entry.grid(row=1, column=1, padx=5, pady=5)
+        
+        self.capture_button = tk.Button(person_frame, text="Capture", command=self.start_capture, bg="#4CAF50", fg="white")
+        self.capture_button.grid(row=0, column=2, rowspan=2, padx=5, pady=5)
         
         # Auto capture option
-        self.auto_capture_var = tk.BooleanVar(value=False)
-        auto_capture_check = tk.Checkbutton(person_frame, text="Auto Capture", 
-                                          variable=self.auto_capture_var)
-        auto_capture_check.grid(row=1, column=0, padx=5, pady=5, sticky=tk.W)
+        self.auto_capture_var = tk.BooleanVar(value=True)
+        auto_capture_check = tk.Checkbutton(person_frame, text="Auto Capture", variable=self.auto_capture_var)
+        auto_capture_check.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky=tk.W)
         
-        # Right side - Training and Recognition
-        train_frame = tk.LabelFrame(right_control, text="Train Model")
+        # Students list frame
+        students_frame = tk.LabelFrame(middle_control, text="👥 Registered Students", font=("Arial", 10, "bold"))
+        students_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        
+        # Treeview for students
+        tree_scroll = ttk.Scrollbar(students_frame)
+        tree_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.students_tree = ttk.Treeview(students_frame, columns=("ID", "Name"), 
+                                         show="headings", height=8, yscrollcommand=tree_scroll.set)
+        self.students_tree.heading("ID", text="ID")
+        self.students_tree.heading("Name", text="Name")
+        self.students_tree.column("ID", width=50)
+        self.students_tree.column("Name", width=120)
+        
+        tree_scroll.config(command=self.students_tree.yview)
+        self.students_tree.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        self.refresh_students_list()
+        
+        # Delete student button
+        self.delete_student_btn = tk.Button(students_frame, text="🗑️  Delete Selected", 
+                                           command=self.delete_selected_student, bg="#F44336", fg="white")
+        self.delete_student_btn.pack(fill=tk.X, padx=5, pady=5)
+        
+        # RIGHT: Training and Recognition
+        train_frame = tk.LabelFrame(right_control, text="🧠 Train Model", font=("Arial", 10, "bold"))
         train_frame.pack(fill=tk.X, pady=5)
         
-        self.train_button = tk.Button(train_frame, text="Train Recognition Model", command=self.train_model)
+        self.train_button = tk.Button(train_frame, text="Train Recognition Model", 
+                                     command=self.train_model, bg="#2196F3", fg="white")
         self.train_button.pack(fill=tk.X, padx=5, pady=5)
         
-        recog_frame = tk.LabelFrame(right_control, text="Face Recognition")
+        recog_frame = tk.LabelFrame(right_control, text="🎯 Face Recognition", font=("Arial", 10, "bold"))
         recog_frame.pack(fill=tk.X, pady=5)
         
-        self.recognize_button = tk.Button(recog_frame, text="Start Recognition", command=self.start_recognition)
+        self.recognize_button = tk.Button(recog_frame, text="Start Recognition", 
+                                         command=self.start_recognition, bg="#4CAF50", fg="white")
         self.recognize_button.pack(fill=tk.X, padx=5, pady=5)
         
         # Stop button
-        self.stop_button = tk.Button(self.control_frame, text="Stop", command=self.stop_processing, state=tk.DISABLED)
-        self.stop_button.pack(side=tk.BOTTOM, fill=tk.X, padx=5, pady=5)
+        self.stop_button = tk.Button(self.control_frame, text="⏹️  Stop", command=self.stop_processing, 
+                                    state=tk.DISABLED, bg="#F44336", fg="white", font=("Arial", 10, "bold"))
+        self.stop_button.pack(side=tk.BOTTOM, fill=tk.X, padx=5, pady=10)
         
         # Check model status
         self.check_model_status()
         self.update_attendance_dashboard()
     
+    def refresh_students_list(self):
+        """Refresh the students list in the GUI"""
+        for item in self.students_tree.get_children():
+            self.students_tree.delete(item)
+        
+        if os.path.exists(self.students_csv):
+            try:
+                with open(self.students_csv, 'r', encoding='utf-8') as f:
+                    reader = csv.reader(f)
+                    for row in reader:
+                        if row:
+                            self.students_tree.insert("", "end", values=row)
+            except Exception as e:
+                LOGGER.error(f"Error reading students CSV: {e}")
+    
+    def save_student_to_csv(self, student_id, student_name):
+        """Save student to CSV"""
+        try:
+            os.makedirs(os.path.dirname(self.students_csv), exist_ok=True)
+            rows = []
+            
+            if os.path.exists(self.students_csv):
+                with open(self.students_csv, 'r', encoding='utf-8') as f:
+                    rows = list(csv.reader(f))
+            
+            # Check if student already exists
+            if any(row and row[0] == str(student_id) for row in rows):
+                messagebox.showwarning("Duplicate", f"Student ID {student_id} already exists!")
+                return False
+            
+            # Add new student
+            rows.append([str(student_id), student_name])
+            
+            with open(self.students_csv, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerows(rows)
+            
+            return True
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save student: {e}")
+            LOGGER.exception("Error saving student")
+            return False
+    
+    def delete_selected_student(self):
+        """Delete selected student and all their face data"""
+        selected_item = self.students_tree.focus()
+        if not selected_item:
+            messagebox.showwarning("Delete", "Select a student first!")
+            return
+        
+        values = self.students_tree.item(selected_item)['values']
+        if not values:
+            return
+        
+        student_id = values[0]
+        student_name = values[1] if len(values) > 1 else "Unknown"
+        
+        # Confirmation dialog
+        if not messagebox.askyesno("Confirm Delete", 
+                                   f"Delete {student_name} (ID: {student_id}) and all face data?\nThis cannot be undone!"):
+            return
+        
+        try:
+            # Remove from CSV
+            if os.path.exists(self.students_csv):
+                rows = []
+                with open(self.students_csv, 'r', encoding='utf-8') as f:
+                    reader = csv.reader(f)
+                    rows = [row for row in reader if not (row and row[0] == str(student_id))]
+                
+                with open(self.students_csv, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    writer.writerows(rows)
+            
+            # Remove face images
+            student_dir = os.path.join(self.faces_dir, str(student_id))
+            if os.path.exists(student_dir):
+                import shutil
+                shutil.rmtree(student_dir)
+            
+            # Remove trained model to force retraining
+            model_file = os.path.join(self.data_dir, "models", "face_recognizer.xml")
+            if os.path.exists(model_file):
+                os.remove(model_file)
+            if os.path.exists(self.model_path):
+                os.remove(self.model_path)
+            
+            self.model_trained = False
+            
+            # Refresh UI
+            self.refresh_students_list()
+            self.check_model_status()
+            
+            messagebox.showinfo("Success", f"Student {student_name} deleted successfully!\nPlease retrain the model.")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to delete student: {e}")
+            LOGGER.exception("Error deleting student")
+    
     def check_model_status(self):
         """Check if a trained model exists and update status"""
         if self.model_trained:
-            self.status_label.config(text="Model loaded successfully. Ready for recognition.")
+            self.status_label.config(text="✅ Model loaded successfully. Ready for recognition.", fg="green")
         else:
-            self.status_label.config(text="No trained model found. Please capture samples and train the model.")
+            self.status_label.config(text="❌ No trained model found. Capture samples and train the model.", fg="red")
 
     def update_attendance_dashboard(self):
-        """Refresh attendance statistics displayed in the UI."""
+        """Refresh attendance statistics"""
         try:
             summary = self.attendance_store.get_today_summary()
             self.total_events_label.config(text=f"Today's events: {summary['total_events']}")
@@ -195,7 +342,7 @@ class FaceRecognitionAppSimplified:
         self.root.after(5000, self.update_attendance_dashboard)
 
     def mark_attendance_event(self, person_name, confidence):
-        """Mark attendance with cooldown to avoid duplicate entries."""
+        """Mark attendance with cooldown"""
         try:
             marked, message = self.attendance_store.mark_attendance(
                 person_name=person_name,
@@ -206,10 +353,10 @@ class FaceRecognitionAppSimplified:
             if marked:
                 LOGGER.info(message)
         except Exception:
-            LOGGER.exception("Failed to mark attendance for %s", person_name)
+            LOGGER.exception("Failed to mark attendance")
 
     def export_today_attendance(self):
-        """Export today's attendance to CSV."""
+        """Export today's attendance to CSV"""
         try:
             output_path, row_count = self.attendance_store.export_today_csv()
             messagebox.showinfo("Export Complete", f"Exported {row_count} rows to:\n{output_path}")
@@ -217,7 +364,7 @@ class FaceRecognitionAppSimplified:
             messagebox.showerror("Export Error", f"Could not export attendance: {exc}")
 
     def view_today_log(self):
-        """Show a quick view of recent attendance records."""
+        """Show recent attendance records"""
         try:
             records = self.attendance_store.get_today_records()
             if not records:
@@ -241,17 +388,17 @@ class FaceRecognitionAppSimplified:
             return
         
         try:
-            # Load the model data
             with open(self.model_path, 'rb') as f:
                 model_data = pickle.load(f)
             
-            # Load the recognizer with the saved model
-            self.recognizer.read(model_data['model_file'])
-            self.name_dict = model_data['name_dict']
-            self.model_trained = True
+            model_file = model_data['model_file']
+            if os.path.exists(model_file):
+                self.recognizer.read(model_file)
+                self.name_dict = model_data['name_dict']
+                self.model_trained = True
             
         except Exception as e:
-            print(f"Error loading model: {str(e)}")
+            LOGGER.error(f"Error loading model: {str(e)}")
     
     def test_camera(self):
         """Test if camera can be accessed"""
@@ -273,27 +420,51 @@ class FaceRecognitionAppSimplified:
             LOGGER.exception("Camera test failed")
             messagebox.showerror("Error", f"Camera test failed: {str(e)}")
     
+    def preprocess_face(self, gray_frame, face_coords):
+        """Preprocess face with histogram equalization for better recognition"""
+        try:
+            x, y, w, h = face_coords
+            face_roi = gray_frame[y:y+h, x:x+w]
+            
+            if face_roi.size == 0:
+                return None
+            
+            # Histogram equalization for better contrast
+            face_roi = cv2.equalizeHist(face_roi)
+            
+            # Resize to standard size
+            face_roi = cv2.resize(face_roi, (200, 200))
+            
+            return face_roi
+        except Exception:
+            return None
+    
     def start_capture(self):
         """Start face sample capture process"""
-        person_name = self.person_entry.get().strip()
-        if not person_name:
-            messagebox.showerror("Error", "Please enter a person name")
+        student_id = self.person_id_entry.get().strip()
+        student_name = self.person_entry.get().strip()
+        
+        if not student_id or not student_name:
+            messagebox.showerror("Error", "Please enter Student ID and Name")
             return
         
         try:
             self.camera_index = int(self.camera_var.get())
         except ValueError:
-            messagebox.showerror("Error", "Invalid camera index. Please enter a number.")
+            messagebox.showerror("Error", "Invalid camera index")
             return
         
-        # Check if auto capture is enabled
         self.auto_capture = self.auto_capture_var.get()
         
-        # Create directory for this person
-        person_dir = os.path.join(self.faces_dir, person_name)
-        os.makedirs(person_dir, exist_ok=True)
+        # Save student to CSV
+        if not self.save_student_to_csv(student_id, student_name):
+            return
         
-        self.current_person = person_name
+        # Create directory for this student
+        student_dir = os.path.join(self.faces_dir, student_id)
+        os.makedirs(student_dir, exist_ok=True)
+        
+        self.current_person = student_id
         self.sample_count = 0
         self.is_processing = True
         self.stop_threads = False
@@ -305,13 +476,13 @@ class FaceRecognitionAppSimplified:
         self.stop_button.config(state=tk.NORMAL)
         
         # Start capture in a thread
-        self.thread = threading.Thread(target=self.capture_samples_thread)
+        self.thread = threading.Thread(target=self.capture_samples_thread, args=(student_id, student_name))
         self.thread.daemon = True
         self.thread.start()
     
-    def capture_samples_thread(self):
-        """Thread function for capturing face samples"""
-        person_dir = os.path.join(self.faces_dir, self.current_person)
+    def capture_samples_thread(self, student_id, student_name):
+        """Thread function for capturing face samples with improved preprocessing"""
+        student_dir = os.path.join(self.faces_dir, student_id)
         
         cap, _ = open_camera(self.camera_index)
         
@@ -322,11 +493,9 @@ class FaceRecognitionAppSimplified:
             return
         
         try:
-            # Set camera properties
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
             
-            # Initialize auto capture time
             self.last_capture_time = time.time()
             
             while self.sample_count < self.max_samples and not self.stop_threads:
@@ -334,64 +503,74 @@ class FaceRecognitionAppSimplified:
                 if not ret:
                     break
                 
-                # Convert to grayscale for detection
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 
-                # Detect faces
+                # Better face detection with improved parameters
                 faces = self.face_cascade.detectMultiScale(
                     gray,
                     scaleFactor=1.1,
                     minNeighbors=5,
-                    minSize=(30, 30)
+                    minSize=(100, 100)
                 )
                 
-                # Draw rectangle around the detected faces
                 face_found = len(faces) > 0
+                
                 for (x, y, w, h) in faces:
                     cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
                 
-                # Display instructions and progress
-                cv2.putText(frame, f"Person: {self.current_person}", (10, 30),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                # Display instructions
+                cv2.putText(frame, f"Student: {student_name} ({student_id})", (10, 30),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                 cv2.putText(frame, f"Samples: {self.sample_count}/{self.max_samples}", (10, 60),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                 
                 if self.auto_capture:
-                    cv2.putText(frame, "Auto Capture Mode", (10, 90),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                    cv2.putText(frame, "Auto Capture: ON (Press 'a' to toggle)", (10, 90),
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 165, 255), 2)
                 else:
-                    cv2.putText(frame, "Press 'c' to capture, 'q' to quit", (10, 90),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                    cv2.putText(frame, "Press 'c' to capture, 'a' for auto, 'q' to quit", (10, 90),
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 165, 255), 2)
                 
-                # Display the frame
                 cv2.imshow('Capture Face Samples', frame)
                 
                 # Auto capture logic
                 current_time = time.time()
                 if self.auto_capture and face_found and (current_time - self.last_capture_time) >= self.auto_capture_interval:
-                    if self.capture_face_sample(gray, faces[0]):
-                        self.last_capture_time = current_time
-                    
+                    if len(faces) > 0:
+                        face_preprocessed = self.preprocess_face(gray, faces[0])
+                        if face_preprocessed is not None:
+                            sample_file = os.path.join(student_dir, f"{student_id}_{self.sample_count}.jpg")
+                            cv2.imwrite(sample_file, face_preprocessed)
+                            self.sample_count += 1
+                            self.last_capture_time = current_time
+                
                 # Handle key presses
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord('c') and face_found:
-                    self.capture_face_sample(gray, faces[0])
+                    if len(faces) > 0:
+                        face_preprocessed = self.preprocess_face(gray, faces[0])
+                        if face_preprocessed is not None:
+                            sample_file = os.path.join(student_dir, f"{student_id}_{self.sample_count}.jpg")
+                            cv2.imwrite(sample_file, face_preprocessed)
+                            self.sample_count += 1
                 elif key == ord('q'):
                     break
-                elif key == ord('a'):  # Toggle auto capture
+                elif key == ord('a'):
                     self.auto_capture = not self.auto_capture
-                    self.last_capture_time = current_time  # Reset timer
+                    self.last_capture_time = current_time
             
             cap.release()
             cv2.destroyAllWindows()
             
-            # Show result message
+            # Refresh students list
+            self.root.after(0, self.refresh_students_list)
+            
             if self.sample_count == self.max_samples:
                 self.root.after(0, lambda: messagebox.showinfo("Success", 
-                                f"Successfully captured {self.sample_count} samples for {self.current_person}"))
+                                f"Successfully captured {self.sample_count} samples for {student_name}"))
             else:
-                self.root.after(0, lambda: messagebox.showinfo("Partial Completion", 
-                                f"Captured {self.sample_count}/{self.max_samples} samples for {self.current_person}"))
+                self.root.after(0, lambda: messagebox.showinfo("Partial", 
+                                f"Captured {self.sample_count}/{self.max_samples} samples"))
             
             self.root.after(0, self.reset_ui)
             
@@ -403,39 +582,13 @@ class FaceRecognitionAppSimplified:
             self.root.after(0, lambda: messagebox.showerror("Error", f"An error occurred: {str(e)}"))
             self.root.after(0, self.reset_ui)
     
-    def capture_face_sample(self, gray_frame, face_coords):
-        """Capture a single face sample"""
-        try:
-            # Extract face coordinates
-            x, y, w, h = face_coords
-            
-            # Extract face region
-            face_img = gray_frame[y:y+h, x:x+w]
-            
-            # Ensure the face region is valid
-            if face_img.size == 0:
-                return False
-            
-            # Save the face image
-            sample_file = os.path.join(self.faces_dir, self.current_person, 
-                                      f"{self.current_person}_{self.sample_count}.jpg")
-            cv2.imwrite(sample_file, face_img)
-            
-            self.sample_count += 1
-            return True
-            
-        except Exception as e:
-            LOGGER.exception("Error capturing face sample")
-            return False
-    
     def train_model(self):
-        """Train face recognition model with the captured samples"""
-        # Check if there are any samples to train on
+        """Train face recognition model with captured samples"""
         if not os.path.exists(self.faces_dir) or not os.listdir(self.faces_dir):
             messagebox.showerror("Error", "No face samples found. Capture samples first.")
             return
         
-        # Show progress dialog
+        # Progress dialog
         progress_window = tk.Toplevel(self.root)
         progress_window.title("Training Model")
         progress_window.geometry("300x100")
@@ -449,64 +602,69 @@ class FaceRecognitionAppSimplified:
         progress_bar.pack(fill=tk.X, padx=20, pady=10)
         progress_bar.start()
         
-        # Disable buttons
         self.train_button.config(state=tk.DISABLED)
         self.capture_button.config(state=tk.DISABLED)
         self.recognize_button.config(state=tk.DISABLED)
         
-        # Start training in a thread
         def training_thread():
             try:
-                # Prepare training data
                 faces = []
                 labels = []
-                name_dict = {}  # Map numeric label to person name
+                name_dict = {}
                 label_counter = 0
                 
-                # Process each person's directory
-                for person_name in os.listdir(self.faces_dir):
-                    person_dir = os.path.join(self.faces_dir, person_name)
+                # Process each student directory
+                for student_id in os.listdir(self.faces_dir):
+                    student_dir = os.path.join(self.faces_dir, student_id)
                     
-                    if not os.path.isdir(person_dir):
+                    if not os.path.isdir(student_dir):
                         continue
                     
-                    # Assign a numeric label to this person
-                    name_dict[label_counter] = person_name
+                    # Find student name from CSV
+                    student_name = student_id
+                    if os.path.exists(self.students_csv):
+                        with open(self.students_csv, 'r', encoding='utf-8') as f:
+                            for row in csv.reader(f):
+                                if row and row[0] == student_id:
+                                    student_name = row[1] if len(row) > 1 else student_id
+                                    break
                     
-                    # Process each image in the person's directory
-                    for img_name in os.listdir(person_dir):
-                        if not img_name.endswith(('.jpg', '.jpeg', '.png')):
+                    name_dict[label_counter] = student_name
+                    
+                    # Process images
+                    for img_name in os.listdir(student_dir):
+                        if not img_name.lower().endswith(('.jpg', '.jpeg', '.png')):
                             continue
-                            
-                        img_path = os.path.join(person_dir, img_name)
                         
-                        # Load and preprocess the image
+                        img_path = os.path.join(student_dir, img_name)
                         face_img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+                        
                         if face_img is None:
                             continue
-                            
-                        # Add to training data
+                        
+                        face_img = cv2.resize(face_img, (200, 200))
                         faces.append(face_img)
                         labels.append(label_counter)
                     
                     label_counter += 1
                 
-                # Check if we have enough data
-                if len(faces) == 0 or label_counter == 0:
+                if len(faces) == 0:
                     self.root.after(0, lambda: messagebox.showerror("Error", 
-                                    "Not enough face samples found. Capture more samples."))
+                                    "Not enough face samples. Capture more samples."))
                     self.root.after(0, lambda: progress_window.destroy())
                     self.root.after(0, self.reset_ui)
                     return
                 
-                # Train the model
+                # Train with improved LBPH
+                self.recognizer = cv2.face.LBPHFaceRecognizer_create(
+                    radius=2, neighbors=8, grid_x=8, grid_y=8, threshold=80
+                )
                 self.recognizer.train(faces, np.array(labels))
                 
-                # Save the model temporarily
+                # Save model
                 model_file = os.path.join(self.data_dir, "models", "face_recognizer.xml")
                 self.recognizer.write(model_file)
                 
-                # Save model info with name mappings
                 model_data = {
                     'model_file': model_file,
                     'name_dict': name_dict
@@ -518,10 +676,9 @@ class FaceRecognitionAppSimplified:
                 self.name_dict = name_dict
                 self.model_trained = True
                 
-                # Update UI
                 self.root.after(0, lambda: progress_window.destroy())
                 self.root.after(0, lambda: messagebox.showinfo("Success", 
-                                f"Model trained successfully with {len(faces)} samples from {label_counter} people."))
+                                f"Model trained with {len(faces)} samples from {label_counter} students."))
                 self.root.after(0, self.check_model_status)
                 self.root.after(0, self.reset_ui)
                 
@@ -535,31 +692,29 @@ class FaceRecognitionAppSimplified:
     def start_recognition(self):
         """Start face recognition process"""
         if not self.model_trained:
-            messagebox.showerror("Error", "No trained model available. Please train the model first.")
+            messagebox.showerror("Error", "No trained model. Please train the model first.")
             return
         
         try:
             self.camera_index = int(self.camera_var.get())
         except ValueError:
-            messagebox.showerror("Error", "Invalid camera index. Please enter a number.")
+            messagebox.showerror("Error", "Invalid camera index")
             return
         
         self.is_processing = True
         self.stop_threads = False
         
-        # Update UI
         self.capture_button.config(state=tk.DISABLED)
         self.train_button.config(state=tk.DISABLED)
         self.recognize_button.config(state=tk.DISABLED)
         self.stop_button.config(state=tk.NORMAL)
         
-        # Start recognition in a thread
         self.thread = threading.Thread(target=self.recognition_thread)
         self.thread.daemon = True
         self.thread.start()
     
     def recognition_thread(self):
-        """Thread function for face recognition"""
+        """Thread function for face recognition with improved accuracy"""
         cap, _ = open_camera(self.camera_index)
         
         if cap is None or not cap.isOpened():
@@ -569,7 +724,6 @@ class FaceRecognitionAppSimplified:
             return
             
         try:
-            # Set camera properties
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
             
@@ -578,60 +732,48 @@ class FaceRecognitionAppSimplified:
                 if not ret:
                     break
                 
-                # Convert to grayscale for detection and recognition
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 
-                # Detect faces
+                # Improved face detection
                 faces = self.face_cascade.detectMultiScale(
                     gray,
                     scaleFactor=1.1,
                     minNeighbors=5,
-                    minSize=(30, 30)
+                    minSize=(100, 100)
                 )
                 
-                # Process each detected face
                 for (x, y, w, h) in faces:
-                    # Extract the face region
                     face_roi = gray[y:y+h, x:x+w]
+                    face_roi = cv2.resize(face_roi, (200, 200))
+                    face_roi = cv2.equalizeHist(face_roi)
                     
-                    # Perform recognition
                     try:
                         label, confidence = self.recognizer.predict(face_roi)
                         
-                        # Get the name from the label
-                        if confidence < 70:  # Lower confidence is better
+                        if confidence < 75:  # Lower is better
                             name = self.name_dict.get(label, "Unknown")
                             if name != "Unknown":
                                 self.mark_attendance_event(name, confidence)
                         else:
                             name = "Unknown"
                         
-                        # Display confidence value
-                        conf_text = f"{confidence:.1f}%"
+                        conf_text = f"{confidence:.1f}"
                         
-                        # Draw rectangle around the face
-                        cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
-                        
-                        # Draw name and confidence
-                        cv2.rectangle(frame, (x, y-25), (x+w, y), (0, 255, 0), -1)
-                        cv2.putText(frame, f"{name} ({conf_text})", (x+6, y-6),
-                                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+                        color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
+                        cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
+                        cv2.rectangle(frame, (x, y-30), (x+w, y), color, -1)
+                        cv2.putText(frame, f"{name} ({conf_text})", (x+6, y-10),
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
                     except Exception:
-                        LOGGER.exception("Recognizer prediction failed for a detected face")
-                        # If recognition fails, just show the face
+                        LOGGER.exception("Prediction failed")
                         cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
                 
-                # Display instructions
-                cv2.putText(frame, "Face Recognition Running", (10, 30),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-                cv2.putText(frame, "Press 'q' to quit", (10, 60),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                cv2.putText(frame, "Face Recognition Running - Press 'Q' to quit", (10, 30),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                 
-                # Display the frame
                 cv2.imshow('Face Recognition', frame)
                 
-                # Exit on 'q' key press
-                if cv2.waitKey(1) & 0xFF == ord('q') or self.stop_threads:
+                if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
             
             cap.release()
@@ -663,4 +805,4 @@ class FaceRecognitionAppSimplified:
 if __name__ == "__main__":
     root = tk.Tk()
     app = FaceRecognitionAppSimplified(root)
-    root.mainloop() 
+    root.mainloop()
