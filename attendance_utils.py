@@ -1,24 +1,62 @@
+"""
+Attendance tracking and storage module.
+Manages SQLite database for marking and exporting attendance records.
+Includes deduplication logic and thread-safe operations.
+"""
+
 import csv
 import os
 import sqlite3
 import threading
+import logging
 from datetime import datetime
+import config
+
+logger = logging.getLogger(__name__)
 
 
 class AttendanceStore:
-    def __init__(self, db_path="data/attendance/attendance.db"):
+    def __init__(self, db_path=None):
+        """
+        Initialize attendance store.
+        
+        Args:
+            db_path: Path to SQLite database (uses config default if None)
+        """
+        if db_path is None:
+            db_path = str(config.ATTENDANCE_DB)
+        
         self.db_path = db_path
         self._lock = threading.Lock()
+        
+        # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        
+        logger.info(f"Initializing AttendanceStore with database: {self.db_path}")
         self._init_db()
 
     def _connect(self):
-        return sqlite3.connect(self.db_path, check_same_thread=False)
+        """
+        Create a database connection with proper error handling.
+        
+        Returns:
+            sqlite3.Connection: Database connection
+        """
+        try:
+            return sqlite3.connect(self.db_path, check_same_thread=False)
+        except sqlite3.Error as e:
+            logger.error(f"Database connection error: {e}")
+            raise
 
     def _init_db(self):
+        """
+        Initialize the database schema.
+        Creates attendance table if it doesn't exist.
+        """
         with self._lock:
-            conn = self._connect()
+            conn = None
             try:
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     """
@@ -31,18 +69,67 @@ class AttendanceStore:
                     )
                     """
                 )
+                
+                # Create index for faster queries
+                cursor.execute(
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_person_time 
+                    ON attendance(person_name, recognized_at)
+                    """
+                )
+                
                 conn.commit()
+                logger.info("Database initialized successfully")
+            except sqlite3.Error as e:
+                logger.error(f"Database initialization error: {e}")
+                raise
             finally:
-                conn.close()
+                if conn:
+                    conn.close()
 
-    def mark_attendance(self, person_name, confidence, source="webcam", min_interval_seconds=60):
+    def mark_attendance(self, person_name, confidence, source=None, min_interval_seconds=None):
+        """
+        Mark attendance for a person with deduplication.
+        
+        Args:
+            person_name: Name of the person
+            confidence: Confidence score of recognition (0-1)
+            source: Source of attendance (uses config default if None)
+            min_interval_seconds: Minimum seconds between marking (uses config default if None)
+        
+        Returns:
+            tuple: (success, message)
+        """
+        if source is None:
+            source = config.ATTENDANCE_SOURCE
+        
+        if min_interval_seconds is None:
+            min_interval_seconds = config.ATTENDANCE_MIN_INTERVAL
+        
+        # Validate inputs
+        if not isinstance(person_name, str) or not person_name.strip():
+            logger.warning("Invalid person name provided to mark_attendance")
+            return False, "Invalid person name"
+        
+        try:
+            confidence = float(confidence)
+            if not 0 <= confidence <= 1:
+                logger.warning(f"Confidence out of range: {confidence}")
+                confidence = max(0, min(1, confidence))
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid confidence value: {confidence}")
+            return False, "Invalid confidence value"
+        
         now = datetime.now()
         now_iso = now.strftime("%Y-%m-%d %H:%M:%S")
-
+        
         with self._lock:
-            conn = self._connect()
+            conn = None
             try:
+                conn = self._connect()
                 cursor = conn.cursor()
+                
+                # Check for duplicate attendance within time window
                 cursor.execute(
                     """
                     SELECT recognized_at FROM attendance
@@ -53,29 +140,46 @@ class AttendanceStore:
                     (person_name,),
                 )
                 row = cursor.fetchone()
+                
                 if row:
                     last_seen = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
                     delta = (now - last_seen).total_seconds()
                     if delta < min_interval_seconds:
-                        return False, f"Skipped duplicate for {person_name}"
-
+                        return False, f"Duplicate attendance skipped for {person_name}"
+                
+                # Insert new attendance record
                 cursor.execute(
                     """
                     INSERT INTO attendance (person_name, recognized_at, confidence, source)
                     VALUES (?, ?, ?, ?)
                     """,
-                    (person_name, now_iso, float(confidence), source),
+                    (person_name, now_iso, confidence, source),
                 )
                 conn.commit()
+                logger.info(f"Attendance marked for {person_name} (confidence: {confidence:.2f})")
                 return True, f"Attendance marked for {person_name}"
+            
+            except sqlite3.Error as e:
+                logger.error(f"Error marking attendance: {e}")
+                return False, f"Database error: {str(e)}"
+            
             finally:
-                conn.close()
+                if conn:
+                    conn.close()
 
     def get_today_records(self):
+        """
+        Get all attendance records for today.
+        
+        Returns:
+            list: List of attendance record dictionaries
+        """
         today = datetime.now().strftime("%Y-%m-%d")
+        
         with self._lock:
-            conn = self._connect()
+            conn = None
             try:
+                conn = self._connect()
                 cursor = conn.cursor()
                 cursor.execute(
                     """
@@ -87,7 +191,8 @@ class AttendanceStore:
                     (f"{today}%",),
                 )
                 rows = cursor.fetchall()
-                return [
+                
+                records = [
                     {
                         "person_name": row[0],
                         "recognized_at": row[1],
@@ -96,12 +201,37 @@ class AttendanceStore:
                     }
                     for row in rows
                 ]
+                
+                logger.info(f"Retrieved {len(records)} records for today")
+                return records
+            
+            except sqlite3.Error as e:
+                logger.error(f"Error retrieving today's records: {e}")
+                return []
+            
             finally:
-                conn.close()
+                if conn:
+                    conn.close()
+
 
     def get_today_summary(self):
+        """
+        Get summary statistics for today's attendance.
+        
+        Returns:
+            dict: Statistics including total events, unique people, last event
+        """
         records = self.get_today_records()
+        
+        if not records:
+            return {
+                "total_events": 0,
+                "unique_people": 0,
+                "last_event": None,
+            }
+        
         unique_people = len({item["person_name"] for item in records})
+        
         return {
             "total_events": len(records),
             "unique_people": unique_people,
@@ -109,20 +239,39 @@ class AttendanceStore:
         }
 
     def export_today_csv(self, output_path=None):
+        """
+        Export today's attendance records to CSV.
+        
+        Args:
+            output_path: Output CSV file path (generates default if None)
+        
+        Returns:
+            tuple: (output_path, record_count) or (None, 0) on error
+        """
         records = self.get_today_records()
-        if output_path is None:
-            export_dir = "data/attendance/exports"
-            os.makedirs(export_dir, exist_ok=True)
-            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_path = os.path.join(export_dir, f"attendance_{stamp}.csv")
-
-        with open(output_path, "w", newline="", encoding="utf-8") as csv_file:
-            writer = csv.DictWriter(
-                csv_file,
-                fieldnames=["person_name", "recognized_at", "confidence", "source"],
-            )
-            writer.writeheader()
-            for row in records:
-                writer.writerow(row)
-
-        return output_path, len(records)
+        
+        if not records:
+            logger.warning("No records to export")
+            return None, 0
+        
+        try:
+            if output_path is None:
+                os.makedirs(str(config.EXPORTS_DIR), exist_ok=True)
+                stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                output_path = str(config.EXPORTS_DIR / f"attendance_{stamp}.csv")
+            
+            with open(output_path, "w", newline="", encoding="utf-8") as csv_file:
+                writer = csv.DictWriter(
+                    csv_file,
+                    fieldnames=["person_name", "recognized_at", "confidence", "source"],
+                )
+                writer.writeheader()
+                for row in records:
+                    writer.writerow(row)
+            
+            logger.info(f"Exported {len(records)} records to {output_path}")
+            return output_path, len(records)
+        
+        except Exception as e:
+            logger.error(f"Error exporting CSV: {e}")
+            return None, 0
