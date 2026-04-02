@@ -157,8 +157,11 @@ class FaceRecognitionAppSimplified:
         self.person_entry = tk.Entry(person_frame, width=15)
         self.person_entry.grid(row=1, column=1, padx=5, pady=5)
         
-        self.capture_button = tk.Button(person_frame, text="Capture", command=self.start_capture, bg="#4CAF50", fg="white")
-        self.capture_button.grid(row=0, column=2, rowspan=2, padx=5, pady=5)
+        self.capture_button = tk.Button(person_frame, text="📷 Capture", command=self.start_capture, bg="#4CAF50", fg="white")
+        self.capture_button.grid(row=0, column=2, padx=5, pady=5)
+        
+        self.import_button = tk.Button(person_frame, text="📱 Import", command=self.open_import_tool, bg="#9C27B0", fg="white")
+        self.import_button.grid(row=1, column=2, padx=5, pady=5)
         
         # Auto capture option
         self.auto_capture_var = tk.BooleanVar(value=True)
@@ -438,6 +441,25 @@ class FaceRecognitionAppSimplified:
             return face_roi
         except Exception:
             return None
+    
+    def open_import_tool(self):
+        """Open the Image Import Tool for importing phone photos"""
+        try:
+            # Import the image import tool
+            from image_import_tool import ImageImportTool
+            
+            # Create a new window for the import tool
+            import_window = tk.Toplevel(self.root)
+            app = ImageImportTool(import_window)
+            
+            # Make it modal-like
+            import_window.transient(self.root)
+            import_window.grab_set()
+            
+            LOGGER.info("Image Import Tool opened")
+        except Exception as e:
+            LOGGER.error(f"Error opening import tool: {e}")
+            messagebox.showerror("Error", f"Failed to open import tool:\n{str(e)}\n\nMake sure image_import_tool.py exists")
     
     def start_capture(self):
         """Start face sample capture process"""
