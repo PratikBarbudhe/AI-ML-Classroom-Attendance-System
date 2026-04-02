@@ -5,6 +5,7 @@ Centralizes all settings, constants, and configuration values.
 
 import os
 from pathlib import Path
+import cv2
 
 # ============================================================================
 # Directory Paths
