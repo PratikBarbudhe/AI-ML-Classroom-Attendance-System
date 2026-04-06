@@ -26,7 +26,18 @@ class ImageImportTool:
     def __init__(self, root):
         self.root = root
         self.root.title("📱 Face Image Import Tool")
-        self.root.geometry("1000x800")
+        self.root.geometry("1100x850")
+        self.root.minsize(900, 700)
+        
+        # Configure colors
+        self.BG_COLOR = "#f0f0f0"
+        self.PRIMARY_COLOR = "#2196F3"
+        self.SUCCESS_COLOR = "#4CAF50"
+        self.WARNING_COLOR = "#FF9800"
+        self.DANGER_COLOR = "#F44336"
+        self.INFO_COLOR = "#9C27B0"
+        
+        self.root.configure(bg=self.BG_COLOR)
         
         # Data paths
         self.data_dir = "data"
@@ -48,161 +59,192 @@ class ImageImportTool:
         self.refresh_person_list()
         
     def create_widgets(self):
-        """Create the GUI widgets"""
-        # Title
+        """Create the GUI widgets with improved styling"""
+        # Title with styling
         title_label = tk.Label(self.root, text="📱 Import Face Images from Phone/Camera", 
-                              font=("Arial", 18, "bold"), fg="#1976D2")
+                              font=("Arial", 18, "bold"), bg=self.BG_COLOR, fg="#1565C0")
         title_label.pack(pady=15)
         
         # Main container
-        main_frame = tk.Frame(self.root)
+        main_frame = tk.Frame(self.root, bg=self.BG_COLOR)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
         
         # LEFT PANEL - Person Selection
-        left_panel = tk.LabelFrame(main_frame, text="👥 Select Person", font=("Arial", 12, "bold"))
-        left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10), pady=5)
+        left_panel = tk.LabelFrame(main_frame, text="👥 Select Person", 
+                                  font=("Arial", 11, "bold"), bg=self.BG_COLOR, 
+                                  fg=self.PRIMARY_COLOR, padx=10, pady=10)
+        left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10), pady=5, ipadx=5)
         
         # Person selection dropdown
-        person_label = tk.Label(left_panel, text="Select or Create Person:", font=("Arial", 10))
-        person_label.pack(padx=10, pady=(10, 5), anchor=tk.W)
+        person_label = tk.Label(left_panel, text="Select Existing:", font=("Arial", 10, "bold"), 
+                               bg=self.BG_COLOR)
+        person_label.pack(padx=10, pady=(5, 3), anchor=tk.W)
         
         self.person_dropdown = ttk.Combobox(left_panel, textvariable=self.selected_person, 
-                                           width=20, state="readonly")
+                                           width=22, font=("Arial", 9), state="readonly")
         self.person_dropdown.pack(padx=10, pady=5, fill=tk.X)
         self.person_dropdown.bind("<<ComboboxSelected>>", lambda e: self.on_person_selected())
         
         # New person entry
-        new_person_label = tk.Label(left_panel, text="Create New Person:", font=("Arial", 10))
-        new_person_label.pack(padx=10, pady=(15, 5), anchor=tk.W)
+        new_person_label = tk.Label(left_panel, text="Create New Person:", 
+                                   font=("Arial", 10, "bold"), bg=self.BG_COLOR)
+        new_person_label.pack(padx=10, pady=(15, 3), anchor=tk.W)
         
-        new_person_frame = tk.Frame(left_panel)
+        new_person_frame = tk.Frame(left_panel, bg=self.BG_COLOR)
         new_person_frame.pack(padx=10, pady=5, fill=tk.X)
         
-        self.new_person_entry = tk.Entry(new_person_frame, font=("Arial", 10), width=20)
+        self.new_person_entry = tk.Entry(new_person_frame, font=("Arial", 10), 
+                                        width=22, relief=tk.SUNKEN, bd=1)
         self.new_person_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         
         create_person_btn = tk.Button(new_person_frame, text="Create", 
                                      command=self.create_new_person, 
-                                     bg="#4CAF50", fg="white")
+                                     bg=self.SUCCESS_COLOR, fg="white", 
+                                     font=("Arial", 9, "bold"), relief=tk.RAISED)
         create_person_btn.pack(side=tk.LEFT)
         
         # Person info
-        info_label = tk.Label(left_panel, text="📊 Person Info:", font=("Arial", 10, "bold"))
-        info_label.pack(padx=10, pady=(15, 5), anchor=tk.W)
+        info_label = tk.Label(left_panel, text="📊 Person Info:", font=("Arial", 10, "bold"),
+                             bg=self.BG_COLOR)
+        info_label.pack(padx=10, pady=(15, 3), anchor=tk.W)
         
         self.person_info_label = tk.Label(left_panel, text="No person selected", 
-                                         font=("Arial", 9), justify=tk.LEFT)
+                                         font=("Arial", 9), justify=tk.LEFT,
+                                         bg=self.BG_COLOR, fg="#444444")
         self.person_info_label.pack(padx=10, pady=5, anchor=tk.W, fill=tk.X)
         
         # Display existing people
-        existing_label = tk.Label(left_panel, text="📁 Existing Faces:", font=("Arial", 10, "bold"))
-        existing_label.pack(padx=10, pady=(15, 5), anchor=tk.W)
+        existing_label = tk.Label(left_panel, text="📁 Existing Faces:", font=("Arial", 10, "bold"),
+                                 bg=self.BG_COLOR)
+        existing_label.pack(padx=10, pady=(15, 3), anchor=tk.W)
         
-        self.person_listbox = tk.Listbox(left_panel, height=15, font=("Arial", 9))
+        self.person_listbox = tk.Listbox(left_panel, height=15, font=("Arial", 9),
+                                        relief=tk.SUNKEN, bd=1, bg="white")
         self.person_listbox.pack(padx=10, pady=5, fill=tk.BOTH, expand=True)
         self.person_listbox.bind('<<ListboxSelect>>', self.on_person_from_list)
         
         # Refresh button
         refresh_btn = tk.Button(left_panel, text="🔄 Refresh", command=self.refresh_person_list,
-                               bg="#2196F3", fg="white")
+                               bg=self.PRIMARY_COLOR, fg="white",
+                               font=("Arial", 9, "bold"), relief=tk.RAISED)
         refresh_btn.pack(padx=10, pady=10, fill=tk.X)
         
         # CENTER PANEL - Image Import
-        center_panel = tk.LabelFrame(main_frame, text="🖼️ Import Images", font=("Arial", 12, "bold"))
-        center_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        center_panel = tk.LabelFrame(main_frame, text="🖼️ Import Images", 
+                                    font=("Arial", 11, "bold"), bg=self.BG_COLOR,
+                                    fg=self.PRIMARY_COLOR, padx=10, pady=10)
+        center_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5, ipadx=5)
         
         # Import buttons
-        button_frame = tk.Frame(center_panel)
-        button_frame.pack(padx=10, pady=10, fill=tk.X)
+        button_frame = tk.Frame(center_panel, bg=self.BG_COLOR)
+        button_frame.pack(padx=(0, 0), pady=8, fill=tk.X)
         
-        browse_btn = tk.Button(button_frame, text="📂 Browse Images", 
+        browse_btn = tk.Button(button_frame, text="📂 Browse\nImages", 
                               command=self.browse_images,
-                              bg="#FF9800", fg="white", font=("Arial", 10, "bold"),
-                              height=2)
-        browse_btn.pack(side=tk.LEFT, padx=5, fill=tk.BOTH, expand=True)
+                              bg=self.WARNING_COLOR, fg="white", 
+                              font=("Arial", 9, "bold"), relief=tk.RAISED,
+                              height=2, width=15)
+        browse_btn.pack(side=tk.LEFT, padx=3, fill=tk.BOTH, expand=True)
         
-        folder_btn = tk.Button(button_frame, text="📁 Browse Folder", 
+        folder_btn = tk.Button(button_frame, text="📁 Browse\nFolder", 
                               command=self.browse_folder,
-                              bg="#9C27B0", fg="white", font=("Arial", 10, "bold"),
-                              height=2)
-        folder_btn.pack(side=tk.LEFT, padx=5, fill=tk.BOTH, expand=True)
+                              bg=self.INFO_COLOR, fg="white", 
+                              font=("Arial", 9, "bold"), relief=tk.RAISED,
+                              height=2, width=15)
+        folder_btn.pack(side=tk.LEFT, padx=3, fill=tk.BOTH, expand=True)
         
         # Selected files list
-        files_label = tk.Label(center_panel, text="Selected Files:", font=("Arial", 10, "bold"))
-        files_label.pack(padx=10, pady=(10, 5), anchor=tk.W)
+        files_label = tk.Label(center_panel, text="Selected Files:", 
+                              font=("Arial", 10, "bold"), bg=self.BG_COLOR)
+        files_label.pack(padx=0, pady=(10, 3), anchor=tk.W)
         
         # Files frame with scrollbar
-        files_frame = tk.Frame(center_panel)
-        files_frame.pack(padx=10, pady=5, fill=tk.BOTH, expand=True)
+        files_frame = tk.Frame(center_panel, bg=self.BG_COLOR)
+        files_frame.pack(padx=0, pady=5, fill=tk.BOTH, expand=True)
         
         scrollbar = tk.Scrollbar(files_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
         self.files_listbox = tk.Listbox(files_frame, yscrollcommand=scrollbar.set, 
-                                       font=("Arial", 9), height=10)
+                                       font=("Arial", 9), height=8,
+                                       relief=tk.SUNKEN, bd=1, bg="white")
         self.files_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.files_listbox.yview)
         
         # Action buttons
-        action_frame = tk.Frame(center_panel)
-        action_frame.pack(padx=10, pady=10, fill=tk.X)
+        action_frame = tk.Frame(center_panel, bg=self.BG_COLOR)
+        action_frame.pack(padx=0, pady=8, fill=tk.X)
         
-        clear_btn = tk.Button(action_frame, text="🗑️ Clear List", 
+        clear_btn = tk.Button(action_frame, text="🗑️ Clear", 
                              command=self.clear_selection,
-                             bg="#F44336", fg="white", width=15)
-        clear_btn.pack(side=tk.LEFT, padx=5)
+                             bg=self.DANGER_COLOR, fg="white", 
+                             font=("Arial", 9, "bold"), relief=tk.RAISED)
+        clear_btn.pack(side=tk.LEFT, padx=3, fill=tk.BOTH, expand=True)
         
-        remove_btn = tk.Button(action_frame, text="❌ Remove Selected", 
+        remove_btn = tk.Button(action_frame, text="❌ Remove", 
                               command=self.remove_selected_file,
-                              bg="#FF5252", fg="white", width=15)
-        remove_btn.pack(side=tk.LEFT, padx=5)
+                              bg="#FF5252", fg="white", 
+                              font=("Arial", 9, "bold"), relief=tk.RAISED)
+        remove_btn.pack(side=tk.LEFT, padx=3, fill=tk.BOTH, expand=True)
         
         # Import progress
-        progress_label = tk.Label(center_panel, text="Status:", font=("Arial", 10, "bold"))
-        progress_label.pack(padx=10, pady=(5, 0), anchor=tk.W)
+        progress_label = tk.Label(center_panel, text="Import Status:", 
+                                 font=("Arial", 10, "bold"), bg=self.BG_COLOR)
+        progress_label.pack(padx=0, pady=(10, 3), anchor=tk.W)
         
         self.progress_var = tk.IntVar()
         self.progress_bar = ttk.Progressbar(center_panel, variable=self.progress_var, 
-                                           maximum=100, length=400, mode='determinate')
-        self.progress_bar.pack(padx=10, pady=5, fill=tk.X)
+                                           maximum=100, mode='determinate')
+        self.progress_bar.pack(padx=0, pady=5, fill=tk.X)
         
-        self.status_label = tk.Label(center_panel, text="Ready to import images", 
-                                    font=("Arial", 9), fg="blue")
-        self.status_label.pack(padx=10, pady=5, anchor=tk.W, fill=tk.X)
+        self.status_label = tk.Label(center_panel, text="✓ Ready to import images", 
+                                    font=("Arial", 9), bg=self.BG_COLOR, fg="#2E7D32")
+        self.status_label.pack(padx=0, pady=3, anchor=tk.W, fill=tk.X)
         
         # Import button
-        import_btn = tk.Button(center_panel, text="✅ Import Selected Images", 
+        import_btn = tk.Button(center_panel, text="✅ IMPORT SELECTED IMAGES", 
                               command=self.import_images_threaded,
-                              bg="#4CAF50", fg="white", font=("Arial", 12, "bold"),
+                              bg=self.SUCCESS_COLOR, fg="white", 
+                              font=("Arial", 10, "bold"), relief=tk.RAISED,
                               height=2)
-        import_btn.pack(padx=10, pady=10, fill=tk.X)
+        import_btn.pack(padx=0, pady=8, fill=tk.X)
         
         # RIGHT PANEL - Preview
-        right_panel = tk.LabelFrame(main_frame, text="👁️ Preview", font=("Arial", 12, "bold"))
-        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(10, 0), pady=5)
+        right_panel = tk.LabelFrame(main_frame, text="👁️ Preview", 
+                                   font=("Arial", 11, "bold"), bg=self.BG_COLOR,
+                                   fg=self.PRIMARY_COLOR, padx=10, pady=10)
+        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(10, 0), pady=5, ipadx=5)
         
         # Preview image
-        self.preview_label = tk.Label(right_panel, bg="black", text="No image selected", 
+        preview_img_frame = tk.Frame(right_panel, bg="#333", relief=tk.SUNKEN, bd=2)
+        preview_img_frame.pack(fill=tk.BOTH, expand=True, padx=0, pady=8)
+        
+        self.preview_label = tk.Label(preview_img_frame, bg="black", text="📸 No image", 
                                       fg="white", font=("Arial", 12))
-        self.preview_label.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.preview_label.pack(fill=tk.BOTH, expand=True)
         
         # Preview info
         self.preview_info_label = tk.Label(right_panel, text="", font=("Arial", 9), 
-                                          justify=tk.LEFT)
-        self.preview_info_label.pack(padx=10, pady=5, anchor=tk.W, fill=tk.X)
+                                          justify=tk.LEFT, bg=self.BG_COLOR, fg="#555555")
+        self.preview_info_label.pack(padx=0, pady=5, anchor=tk.W, fill=tk.X)
         
         # Preview navigation
-        nav_frame = tk.Frame(right_panel)
-        nav_frame.pack(padx=10, pady=10, fill=tk.X)
+        nav_frame = tk.Frame(right_panel, bg=self.BG_COLOR)
+        nav_frame.pack(padx=0, pady=8, fill=tk.X)
         
-        prev_btn = tk.Button(nav_frame, text="⬅️ Prev", command=self.prev_preview, width=10)
-        prev_btn.pack(side=tk.LEFT, padx=5)
+        prev_btn = tk.Button(nav_frame, text="⬅️ Prev", command=self.prev_preview, 
+                            bg=self.PRIMARY_COLOR, fg="white",
+                            font=("Arial", 9, "bold"), relief=tk.RAISED)
+        prev_btn.pack(side=tk.LEFT, padx=3, fill=tk.BOTH, expand=True)
         
-        next_btn = tk.Button(nav_frame, text="Next ➡️", command=self.next_preview, width=10)
-        next_btn.pack(side=tk.LEFT, padx=5)
+        next_btn = tk.Button(nav_frame, text="Next ➡️", command=self.next_preview, 
+                            bg=self.PRIMARY_COLOR, fg="white",
+                            font=("Arial", 9, "bold"), relief=tk.RAISED)
+        next_btn.pack(side=tk.LEFT, padx=3, fill=tk.BOTH, expand=True)
         
-        self.preview_counter = tk.Label(nav_frame, text="0/0", font=("Arial", 9))
-        self.preview_counter.pack(side=tk.LEFT, padx=10)
+        self.preview_counter = tk.Label(nav_frame, text="0/0", font=("Arial", 9, "bold"),
+                                       bg=self.BG_COLOR, fg="#1976D2")
+        self.preview_counter.pack(side=tk.LEFT, padx=8)
         
     def refresh_person_list(self):
         """Refresh the list of existing people"""

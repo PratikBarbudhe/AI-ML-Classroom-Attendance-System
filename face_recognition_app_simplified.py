@@ -22,7 +22,22 @@ class FaceRecognitionAppSimplified:
     def __init__(self, root):
         self.root = root
         self.root.title("AI Classroom Attendance System")
-        self.root.geometry("900x700")
+        self.root.geometry("1200x800")
+        self.root.minsize(1000, 700)
+        
+        # Configure style
+        style = ttk.Style()
+        style.theme_use('clam')
+        
+        # Configure colors for better appearance
+        self.BG_COLOR = "#f0f0f0"
+        self.PRIMARY_COLOR = "#2196F3"
+        self.SUCCESS_COLOR = "#4CAF50"
+        self.WARNING_COLOR = "#FF9800"
+        self.DANGER_COLOR = "#F44336"
+        self.INFO_COLOR = "#9C27B0"
+        
+        self.root.configure(bg=self.BG_COLOR)
         
         # Variables
         self.thread = None
@@ -71,147 +86,245 @@ class FaceRecognitionAppSimplified:
             root.destroy()
         
     def create_widgets(self):
-        """Create all GUI widgets"""
-        # Create main frames
-        self.top_frame = tk.Frame(self.root, height=120)
+        """Create all GUI widgets with improved styling"""
+        # Create main frames with colors
+        self.top_frame = tk.Frame(self.root, height=150, bg=self.BG_COLOR)
         self.top_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=10)
         
-        self.main_frame = tk.Frame(self.root)
-        self.main_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.main_frame = tk.Frame(self.root, bg="black")
+        self.main_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
         
-        self.control_frame = tk.Frame(self.root, height=200)
+        self.control_frame = tk.Frame(self.root, height=280, bg=self.BG_COLOR)
         self.control_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=10)
+        self.control_frame.pack_propagate(False)
         
-        # Title
-        title_label = tk.Label(self.top_frame, text="AI Classroom Attendance System", font=("Arial", 24, "bold"))
+        # Title with modern styling
+        title_label = tk.Label(self.top_frame, text="🎓 AI Classroom Attendance System", 
+                              font=("Arial", 22, "bold"), bg=self.BG_COLOR, fg="#1565C0")
         title_label.pack(pady=10)
         
-        # Status frame
-        status_frame = tk.LabelFrame(self.top_frame, text="📊 Model Status", font=("Arial", 10, "bold"))
+        # Status frame - improved styling
+        status_frame = tk.LabelFrame(self.top_frame, text="📊 Model Status", 
+                                    font=("Arial", 11, "bold"), bg=self.BG_COLOR, 
+                                    fg=self.PRIMARY_COLOR, padx=10, pady=5)
         status_frame.pack(fill=tk.X, pady=5)
         
-        self.status_label = tk.Label(status_frame, text="Checking model status...", font=("Arial", 10), fg="blue")
+        self.status_label = tk.Label(status_frame, text="Checking model status...", 
+                                    font=("Arial", 10), fg="blue", bg=self.BG_COLOR)
         self.status_label.pack(pady=5)
 
-        # Attendance dashboard
-        attendance_frame = tk.LabelFrame(self.top_frame, text="📈 Attendance Dashboard", font=("Arial", 10, "bold"))
+        # Attendance dashboard - improved styling
+        attendance_frame = tk.LabelFrame(self.top_frame, text="📈 Attendance Dashboard", 
+                                        font=("Arial", 11, "bold"), bg=self.BG_COLOR, 
+                                        fg=self.PRIMARY_COLOR, padx=10, pady=5)
         attendance_frame.pack(fill=tk.X, pady=5)
         
-        self.total_events_label = tk.Label(attendance_frame, text="Today's events: 0", font=("Arial", 10))
-        self.total_events_label.grid(row=0, column=0, padx=8, pady=4, sticky=tk.W)
+        # Dashboard info in grid
+        dashboard_info_frame = tk.Frame(attendance_frame, bg=self.BG_COLOR)
+        dashboard_info_frame.pack(fill=tk.X, pady=3)
         
-        self.unique_people_label = tk.Label(attendance_frame, text="Unique people: 0", font=("Arial", 10))
-        self.unique_people_label.grid(row=0, column=1, padx=8, pady=4, sticky=tk.W)
+        self.total_events_label = tk.Label(dashboard_info_frame, text="📅 Today's events: 0", 
+                                          font=("Arial", 10, "bold"), bg=self.BG_COLOR, fg="#1976D2")
+        self.total_events_label.grid(row=0, column=0, padx=10, pady=2, sticky=tk.W)
         
-        self.last_event_label = tk.Label(attendance_frame, text=self.last_attendance_text, font=("Arial", 10))
-        self.last_event_label.grid(row=1, column=0, columnspan=2, padx=8, pady=4, sticky=tk.W)
+        self.unique_people_label = tk.Label(dashboard_info_frame, text="👥 Unique people: 0", 
+                                           font=("Arial", 10, "bold"), bg=self.BG_COLOR, fg="#7B1FA2")
+        self.unique_people_label.grid(row=0, column=1, padx=10, pady=2, sticky=tk.W)
         
-        self.export_button = tk.Button(attendance_frame, text="📥 Export CSV", command=self.export_today_attendance, bg="#4CAF50", fg="white")
-        self.export_button.grid(row=0, column=2, padx=8, pady=4)
+        self.last_event_label = tk.Label(dashboard_info_frame, text="⏱️ Last: No attendance marked yet", 
+                                        font=("Arial", 9), bg=self.BG_COLOR, fg="#555555")
+        self.last_event_label.grid(row=1, column=0, columnspan=2, padx=10, pady=2, sticky=tk.W)
         
-        self.view_log_button = tk.Button(attendance_frame, text="📋 View Log", command=self.view_today_log, bg="#2196F3", fg="white")
-        self.view_log_button.grid(row=1, column=2, padx=8, pady=4)
+        # Dashboard buttons frame
+        dashboard_btn_frame = tk.Frame(attendance_frame, bg=self.BG_COLOR)
+        dashboard_btn_frame.pack(fill=tk.X, pady=3)
         
-        # Image display
-        self.image_label = tk.Label(self.main_frame, bg="black", text="Camera Feed", fg="white", font=("Arial", 12))
+        self.export_button = tk.Button(dashboard_btn_frame, text="📥 Export CSV", 
+                                      command=self.export_today_attendance, 
+                                      bg=self.SUCCESS_COLOR, fg="white", 
+                                      font=("Arial", 9, "bold"), relief=tk.RAISED, padx=10)
+        self.export_button.pack(side=tk.LEFT, padx=5)
+        
+        self.view_log_button = tk.Button(dashboard_btn_frame, text="📋 View Log", 
+                                        command=self.view_today_log, 
+                                        bg=self.PRIMARY_COLOR, fg="white", 
+                                        font=("Arial", 9, "bold"), relief=tk.RAISED, padx=10)
+        self.view_log_button.pack(side=tk.LEFT, padx=5)
+        
+        # Image display with border
+        image_border = tk.Frame(self.main_frame, bg="#333", relief=tk.SUNKEN, bd=2)
+        image_border.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
+        
+        self.image_label = tk.Label(image_border, bg="black", text="📹 Camera Feed", 
+                                   fg="white", font=("Arial", 14, "bold"))
         self.image_label.pack(fill=tk.BOTH, expand=True)
         
-        # Control frames
-        left_control = tk.Frame(self.control_frame)
-        left_control.pack(side=tk.LEFT, fill=tk.Y, expand=True, padx=5)
+        # Control frames with better layout
+        control_top = tk.Frame(self.control_frame, bg=self.BG_COLOR)
+        control_top.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
         
-        middle_control = tk.Frame(self.control_frame)
-        middle_control.pack(side=tk.LEFT, fill=tk.Y, expand=True, padx=5)
+        left_control = tk.Frame(control_top, bg=self.BG_COLOR)
+        left_control.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
         
-        right_control = tk.Frame(self.control_frame)
-        right_control.pack(side=tk.RIGHT, fill=tk.Y, expand=True, padx=5)
+        middle_control = tk.Frame(control_top, bg=self.BG_COLOR)
+        middle_control.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=2)
         
-        # LEFT: Camera settings
-        camera_frame = tk.LabelFrame(left_control, text="🎥 Camera Settings", font=("Arial", 10, "bold"))
-        camera_frame.pack(fill=tk.X, pady=5)
+        right_control = tk.Frame(control_top, bg=self.BG_COLOR)
+        right_control.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
         
-        camera_label = tk.Label(camera_frame, text="Camera Index:")
-        camera_label.grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
+        # LEFT: Camera settings - improved styling
+        camera_frame = tk.LabelFrame(left_control, text="🎥 Camera Settings", 
+                                    font=("Arial", 10, "bold"), bg=self.BG_COLOR, 
+                                    fg=self.PRIMARY_COLOR, padx=8, pady=8)
+        camera_frame.pack(fill=tk.X, pady=3)
+        
+        camera_label = tk.Label(camera_frame, text="Camera Index:", font=("Arial", 9), bg=self.BG_COLOR)
+        camera_label.grid(row=0, column=0, padx=5, pady=4, sticky=tk.W)
         
         self.camera_var = tk.StringVar(value="0")
-        camera_combobox = ttk.Combobox(camera_frame, textvariable=self.camera_var, width=5)
+        camera_combobox = ttk.Combobox(camera_frame, textvariable=self.camera_var, width=8, 
+                                      font=("Arial", 9), state="readonly")
         camera_combobox['values'] = ('0', '1', '2', '3')
-        camera_combobox.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W)
+        camera_combobox.grid(row=0, column=1, padx=5, pady=4, sticky=tk.W)
         
-        self.test_camera_button = tk.Button(camera_frame, text="Test Camera", command=self.test_camera, bg="#FF9800", fg="white")
-        self.test_camera_button.grid(row=0, column=2, padx=5, pady=5)
+        self.test_camera_button = tk.Button(camera_frame, text="🔍 Test", 
+                                           command=self.test_camera, 
+                                           bg=self.WARNING_COLOR, fg="white", 
+                                           font=("Arial", 9, "bold"), relief=tk.RAISED)
+        self.test_camera_button.grid(row=0, column=2, padx=5, pady=4)
         
-        # MIDDLE: Person capture frame
-        person_frame = tk.LabelFrame(middle_control, text="📸 Capture Face Samples", font=("Arial", 10, "bold"))
-        person_frame.pack(fill=tk.X, pady=5)
+        # MIDDLE: Person capture frame - improved styling
+        person_frame = tk.LabelFrame(middle_control, text="📸 Capture & Import", 
+                                    font=("Arial", 10, "bold"), bg=self.BG_COLOR, 
+                                    fg=self.PRIMARY_COLOR, padx=8, pady=8)
+        person_frame.pack(fill=tk.X, pady=3)
         
-        person_label = tk.Label(person_frame, text="Student ID:")
-        person_label.grid(row=0, column=0, padx=5, pady=5, sticky=tk.W)
+        person_label = tk.Label(person_frame, text="Student ID:", font=("Arial", 9), bg=self.BG_COLOR)
+        person_label.grid(row=0, column=0, padx=5, pady=4, sticky=tk.W)
         
-        self.person_id_entry = tk.Entry(person_frame, width=10)
-        self.person_id_entry.grid(row=0, column=1, padx=5, pady=5)
+        self.person_id_entry = tk.Entry(person_frame, width=12, font=("Arial", 9), relief=tk.SUNKEN, bd=1)
+        self.person_id_entry.grid(row=0, column=1, padx=5, pady=4, sticky=tk.EW)
         
-        person_name_label = tk.Label(person_frame, text="Name:")
-        person_name_label.grid(row=1, column=0, padx=5, pady=5, sticky=tk.W)
+        person_name_label = tk.Label(person_frame, text="Name:", font=("Arial", 9), bg=self.BG_COLOR)
+        person_name_label.grid(row=1, column=0, padx=5, pady=4, sticky=tk.W)
         
-        self.person_entry = tk.Entry(person_frame, width=15)
-        self.person_entry.grid(row=1, column=1, padx=5, pady=5)
+        self.person_entry = tk.Entry(person_frame, width=12, font=("Arial", 9), relief=tk.SUNKEN, bd=1)
+        self.person_entry.grid(row=1, column=1, padx=5, pady=4, sticky=tk.EW)
         
-        self.capture_button = tk.Button(person_frame, text="📷 Capture", command=self.start_capture, bg="#4CAF50", fg="white")
-        self.capture_button.grid(row=0, column=2, padx=5, pady=5)
+        # Buttons in person frame
+        buttons_frame = tk.Frame(person_frame, bg=self.BG_COLOR)
+        buttons_frame.grid(row=0, column=2, rowspan=2, padx=5, pady=4, sticky=tk.NSEW)
         
-        self.import_button = tk.Button(person_frame, text="📱 Import", command=self.open_import_tool, bg="#9C27B0", fg="white")
-        self.import_button.grid(row=1, column=2, padx=5, pady=5)
+        self.capture_button = tk.Button(buttons_frame, text="📷\nCapture", 
+                                       command=self.start_capture, 
+                                       bg=self.SUCCESS_COLOR, fg="white", 
+                                       font=("Arial", 8, "bold"), relief=tk.RAISED, 
+                                       width=8, height=2)
+        self.capture_button.pack(pady=2)
+        
+        self.import_button = tk.Button(buttons_frame, text="📱\nImport", 
+                                      command=self.open_import_tool, 
+                                      bg=self.INFO_COLOR, fg="white", 
+                                      font=("Arial", 8, "bold"), relief=tk.RAISED, 
+                                      width=8, height=2)
+        self.import_button.pack(pady=2)
         
         # Auto capture option
         self.auto_capture_var = tk.BooleanVar(value=True)
-        auto_capture_check = tk.Checkbutton(person_frame, text="Auto Capture", variable=self.auto_capture_var)
-        auto_capture_check.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky=tk.W)
+        auto_capture_check = tk.Checkbutton(person_frame, text="Auto Capture", 
+                                           variable=self.auto_capture_var, 
+                                           font=("Arial", 9), bg=self.BG_COLOR,
+                                           activebackground=self.BG_COLOR)
+        auto_capture_check.grid(row=2, column=0, columnspan=2, padx=5, pady=4, sticky=tk.W)
+        
+        # Configure column widths
+        person_frame.columnconfigure(1, weight=1)
         
         # Students list frame
-        students_frame = tk.LabelFrame(middle_control, text="👥 Registered Students", font=("Arial", 10, "bold"))
-        students_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        students_frame = tk.LabelFrame(middle_control, text="👥 Registered Students", 
+                                      font=("Arial", 10, "bold"), bg=self.BG_COLOR, 
+                                      fg=self.PRIMARY_COLOR, padx=5, pady=5)
+        students_frame.pack(fill=tk.BOTH, expand=True, pady=3)
         
-        # Treeview for students
+        # Treeview for students with custom style
         tree_scroll = ttk.Scrollbar(students_frame)
         tree_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         
         self.students_tree = ttk.Treeview(students_frame, columns=("ID", "Name"), 
-                                         show="headings", height=8, yscrollcommand=tree_scroll.set)
+                                         show="headings", height=6, 
+                                         yscrollcommand=tree_scroll.set)
         self.students_tree.heading("ID", text="ID")
         self.students_tree.heading("Name", text="Name")
         self.students_tree.column("ID", width=50)
         self.students_tree.column("Name", width=120)
         
         tree_scroll.config(command=self.students_tree.yview)
-        self.students_tree.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.students_tree.pack(fill=tk.BOTH, expand=True, padx=2, pady=2)
         
         self.refresh_students_list()
         
         # Delete student button
-        self.delete_student_btn = tk.Button(students_frame, text="🗑️  Delete Selected", 
-                                           command=self.delete_selected_student, bg="#F44336", fg="white")
-        self.delete_student_btn.pack(fill=tk.X, padx=5, pady=5)
+        self.delete_student_btn = tk.Button(students_frame, text="🗑️ Delete Selected", 
+                                           command=self.delete_selected_student, 
+                                           bg=self.DANGER_COLOR, fg="white", 
+                                           font=("Arial", 9, "bold"), relief=tk.RAISED)
+        self.delete_student_btn.pack(fill=tk.X, padx=2, pady=3)
         
         # RIGHT: Training and Recognition
-        train_frame = tk.LabelFrame(right_control, text="🧠 Train Model", font=("Arial", 10, "bold"))
-        train_frame.pack(fill=tk.X, pady=5)
+        train_frame = tk.LabelFrame(right_control, text="🧠 Train Model", 
+                                   font=("Arial", 10, "bold"), bg=self.BG_COLOR, 
+                                   fg=self.PRIMARY_COLOR, padx=8, pady=8)
+        train_frame.pack(fill=tk.X, pady=3)
         
         self.train_button = tk.Button(train_frame, text="Train Recognition Model", 
-                                     command=self.train_model, bg="#2196F3", fg="white")
-        self.train_button.pack(fill=tk.X, padx=5, pady=5)
+                                     command=self.train_model, 
+                                     bg=self.PRIMARY_COLOR, fg="white", 
+                                     font=("Arial", 9, "bold"), relief=tk.RAISED)
+        self.train_button.pack(fill=tk.X, padx=2, pady=3)
         
-        recog_frame = tk.LabelFrame(right_control, text="🎯 Face Recognition", font=("Arial", 10, "bold"))
-        recog_frame.pack(fill=tk.X, pady=5)
+        # Training progress
+        self.train_progress_var = tk.IntVar()
+        self.train_progress_bar = ttk.Progressbar(train_frame, variable=self.train_progress_var, 
+                                                 maximum=100, mode='determinate')
+        self.train_progress_bar.pack(fill=tk.X, padx=2, pady=3)
+        
+        self.train_status_label = tk.Label(train_frame, text="Ready", 
+                                          font=("Arial", 8), bg=self.BG_COLOR, fg="#666666")
+        self.train_status_label.pack(pady=2)
+        
+        # Recognition settings
+        recog_frame = tk.LabelFrame(right_control, text="🎯 Face Recognition", 
+                                   font=("Arial", 10, "bold"), bg=self.BG_COLOR, 
+                                   fg=self.PRIMARY_COLOR, padx=8, pady=8)
+        recog_frame.pack(fill=tk.X, pady=3)
         
         self.recognize_button = tk.Button(recog_frame, text="Start Recognition", 
-                                         command=self.start_recognition, bg="#4CAF50", fg="white")
-        self.recognize_button.pack(fill=tk.X, padx=5, pady=5)
+                                         command=self.start_recognition, 
+                                         bg=self.SUCCESS_COLOR, fg="white", 
+                                         font=("Arial", 9, "bold"), relief=tk.RAISED)
+        self.recognize_button.pack(fill=tk.X, padx=2, pady=3)
         
-        # Stop button
-        self.stop_button = tk.Button(self.control_frame, text="⏹️  Stop", command=self.stop_processing, 
-                                    state=tk.DISABLED, bg="#F44336", fg="white", font=("Arial", 10, "bold"))
-        self.stop_button.pack(side=tk.BOTTOM, fill=tk.X, padx=5, pady=10)
+        # Recognition status
+        self.recog_status_label = tk.Label(recog_frame, text="Stopped", 
+                                          font=("Arial", 8), bg=self.BG_COLOR, fg="#666666")
+        self.recog_status_label.pack(pady=2)
+        
+        # Stop button at bottom
+        stop_frame = tk.Frame(self.control_frame, bg=self.BG_COLOR)
+        stop_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        self.stop_button = tk.Button(stop_frame, text="⏹️  STOP ALL", 
+                                    command=self.stop_processing, 
+                                    state=tk.DISABLED, 
+                                    bg=self.DANGER_COLOR, fg="white", 
+                                    font=("Arial", 11, "bold"), relief=tk.RAISED)
+        self.stop_button.pack(fill=tk.X, padx=0, pady=3)
+        
+        # Keyboard shortcuts
+        self.root.bind('<Escape>', lambda e: self.stop_processing())
+        self.root.bind('<ctrl-s>', lambda e: self.start_capture())
+        self.root.bind('<ctrl-t>', lambda e: self.train_model())
+        self.root.bind('<ctrl-r>', lambda e: self.start_recognition())
         
         # Check model status
         self.check_model_status()
