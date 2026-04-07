@@ -322,9 +322,9 @@ class FaceRecognitionAppSimplified:
         
         # Keyboard shortcuts
         self.root.bind('<Escape>', lambda e: self.stop_processing())
-        self.root.bind('<ctrl-s>', lambda e: self.start_capture())
-        self.root.bind('<ctrl-t>', lambda e: self.train_model())
-        self.root.bind('<ctrl-r>', lambda e: self.start_recognition())
+        self.root.bind('<Control-s>', lambda e: self.start_capture())
+        self.root.bind('<Control-t>', lambda e: self.train_model())
+        self.root.bind('<Control-r>', lambda e: self.start_recognition())
         
         # Check model status
         self.check_model_status()
