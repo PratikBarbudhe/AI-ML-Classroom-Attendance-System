@@ -565,9 +565,8 @@ class FaceRecognitionAppSimplified:
             import_window = tk.Toplevel(self.root)
             app = ImageImportTool(import_window)
             
-            # Make it modal-like
-            import_window.transient(self.root)
-            import_window.grab_set()
+            # Configure window decorations (minimize, maximize, restore buttons)
+            import_window.wm_attributes('-toolwindow', False)
             
             LOGGER.info("Image Import Tool opened")
         except Exception as e:
