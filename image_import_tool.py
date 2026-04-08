@@ -49,6 +49,8 @@ class ImageImportTool:
         self.import_thread = None
         self.selected_files = []
         self.current_preview_index = 0
+        self.existing_person_images = []
+        self.viewing_person_images = False
         
         # Face detection
         self.face_cascade = cv2.CascadeClassifier(
@@ -275,18 +277,46 @@ class ImageImportTool:
             self.selected_person.set(person)
             self.on_person_selected()
     
+    def load_person_images(self, person):
+        """Load existing images for a person"""
+        self.existing_person_images = []
+        person_path = os.path.join(self.faces_dir, person)
+        
+        if os.path.exists(person_path):
+            image_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.JPG', '.JPEG', '.PNG', '.BMP')
+            image_files = [os.path.join(person_path, f) for f in os.listdir(person_path)
+                          if f.lower().endswith(image_extensions)]
+            self.existing_person_images = sorted(image_files)
+    
     def on_person_selected(self):
         """Handle person selection"""
         person = self.selected_person.get()
         if not person:
             self.person_info_label.config(text="No person selected")
+            self.existing_person_images = []
+            self.viewing_person_images = False
+            self.preview_label.config(text="No image", image='')
+            self.preview_info_label.config(text="")
+            self.preview_counter.config(text="0/0")
             return
         
         person_path = os.path.join(self.faces_dir, person)
         if os.path.exists(person_path):
-            num_files = len([f for f in os.listdir(person_path) 
-                           if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp'))])
+            # Load existing images for this person
+            self.load_person_images(person)
+            num_files = len(self.existing_person_images)
             self.person_info_label.config(text=f"👤 {person}\n📸 Images: {num_files}")
+            
+            # Show first image from existing images
+            if self.existing_person_images:
+                self.viewing_person_images = True
+                self.current_preview_index = 0
+                self.show_person_images_preview()
+            else:
+                self.viewing_person_images = False
+                self.preview_label.config(text="No images for this person", image='')
+                self.preview_info_label.config(text="")
+                self.preview_counter.config(text="0/0")
         
     def view_student_data(self):
         """Open a window to view all student data"""
@@ -388,6 +418,7 @@ class ImageImportTool:
         
         if files:
             self.selected_files = list(files)
+            self.viewing_person_images = False
             self.update_files_listbox()
             self.current_preview_index = 0
             self.show_preview()
@@ -406,6 +437,7 @@ class ImageImportTool:
                 return
             
             self.selected_files = sorted(files)
+            self.viewing_person_images = False
             self.update_files_listbox()
             self.current_preview_index = 0
             self.show_preview()
@@ -423,9 +455,15 @@ class ImageImportTool:
         self.selected_files = []
         self.update_files_listbox()
         self.current_preview_index = 0
-        self.preview_label.config(text="No image selected", image='')
-        self.preview_info_label.config(text="")
-        self.preview_counter.config(text="0/0")
+        
+        # Go back to viewing person images if any exist
+        if self.existing_person_images:
+            self.viewing_person_images = True
+            self.show_person_images_preview()
+        else:
+            self.preview_label.config(text="No image selected", image='')
+            self.preview_info_label.config(text="")
+            self.preview_counter.config(text="0/0")
     
     def remove_selected_file(self):
         """Remove selected file from list"""
@@ -437,7 +475,17 @@ class ImageImportTool:
             self.current_preview_index = min(self.current_preview_index, len(self.selected_files) - 1)
             if self.selected_files:
                 self.current_preview_index = max(0, self.current_preview_index)
-            self.show_preview()
+                self.show_preview()
+            else:
+                # No more import files, go back to person images
+                if self.existing_person_images:
+                    self.viewing_person_images = True
+                    self.current_preview_index = 0
+                    self.show_person_images_preview()
+                else:
+                    self.preview_label.config(text="No images", image='')
+                    self.preview_info_label.config(text="")
+                    self.preview_counter.config(text="0/0")
     
     def show_preview(self):
         """Show image preview"""
@@ -480,17 +528,68 @@ class ImageImportTool:
             self.preview_label.config(text=f"Error loading image: {str(e)}", image='')
             self.preview_counter.config(text=f"{self.current_preview_index + 1}/{len(self.selected_files)}")
     
+    def show_person_images_preview(self):
+        """Show existing person images in preview"""
+        if not self.existing_person_images:
+            self.preview_label.config(text="No images for this person", image='')
+            self.preview_info_label.config(text="")
+            self.preview_counter.config(text="0/0")
+            return
+        
+        self.current_preview_index = min(self.current_preview_index, len(self.existing_person_images) - 1)
+        filepath = self.existing_person_images[self.current_preview_index]
+        
+        try:
+            # Load and display image
+            img = Image.open(filepath)
+            img.thumbnail((350, 400))
+            photo = ImageTk.PhotoImage(img)
+            
+            self.preview_label.config(image=photo, text="")
+            self.preview_label.image = photo
+            
+            # Get image info
+            cv_img = cv2.imread(filepath)
+            if cv_img is not None:
+                gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
+                faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
+                
+                filesize = os.path.getsize(filepath) / 1024  # KB
+                height, width = cv_img.shape[:2]
+                
+                info_text = f"File: {os.path.basename(filepath)}\n"
+                info_text += f"Size: {filesize:.1f} KB | {width}x{height}px\n"
+                info_text += f"Faces detected: {len(faces)}"
+                
+                self.preview_info_label.config(text=info_text)
+            
+            self.preview_counter.config(text=f"{self.current_preview_index + 1}/{len(self.existing_person_images)}")
+        
+        except Exception as e:
+            self.preview_label.config(text=f"Error loading image: {str(e)}", image='')
+            self.preview_counter.config(text=f"{self.current_preview_index + 1}/{len(self.existing_person_images)}")
+    
     def next_preview(self):
         """Show next preview"""
-        if self.selected_files:
-            self.current_preview_index = (self.current_preview_index + 1) % len(self.selected_files)
-            self.show_preview()
+        if self.viewing_person_images:
+            if self.existing_person_images:
+                self.current_preview_index = (self.current_preview_index + 1) % len(self.existing_person_images)
+                self.show_person_images_preview()
+        else:
+            if self.selected_files:
+                self.current_preview_index = (self.current_preview_index + 1) % len(self.selected_files)
+                self.show_preview()
     
     def prev_preview(self):
         """Show previous preview"""
-        if self.selected_files:
-            self.current_preview_index = (self.current_preview_index - 1) % len(self.selected_files)
-            self.show_preview()
+        if self.viewing_person_images:
+            if self.existing_person_images:
+                self.current_preview_index = (self.current_preview_index - 1) % len(self.existing_person_images)
+                self.show_person_images_preview()
+        else:
+            if self.selected_files:
+                self.current_preview_index = (self.current_preview_index - 1) % len(self.selected_files)
+                self.show_preview()
     
     def import_images_threaded(self):
         """Import images in a separate thread"""
@@ -571,7 +670,14 @@ class ImageImportTool:
             self.status_label.config(text=f"Import complete! {successful} images added", fg="green")
             messagebox.showinfo("Success", message)
             self.clear_selection()
-            self.on_person_selected()
+            # Reload person images to show newly imported ones
+            person = self.selected_person.get()
+            if person:
+                self.load_person_images(person)
+                if self.existing_person_images:
+                    self.viewing_person_images = True
+                    self.current_preview_index = len(self.existing_person_images) - successful
+                    self.show_person_images_preview()
         else:
             self.status_label.config(text="Import failed - no valid images", fg="red")
             messagebox.showerror("Error", message)
