@@ -127,7 +127,13 @@ class ImageImportTool:
         refresh_btn = tk.Button(left_panel, text="🔄 Refresh", command=self.refresh_person_list,
                                bg=self.PRIMARY_COLOR, fg="white",
                                font=("Arial", 9, "bold"), relief=tk.RAISED)
-        refresh_btn.pack(padx=10, pady=10, fill=tk.X)
+        refresh_btn.pack(padx=10, pady=5, fill=tk.X)
+        
+        # View Student Data button
+        view_data_btn = tk.Button(left_panel, text="📊 View All Students", command=self.view_student_data,
+                                 bg="#1976D2", fg="white",
+                                 font=("Arial", 9, "bold"), relief=tk.RAISED)
+        view_data_btn.pack(padx=10, pady=5, fill=tk.X)
         
         # CENTER PANEL - Image Import
         center_panel = tk.LabelFrame(main_frame, text="🖼️ Import Images", 
@@ -281,6 +287,76 @@ class ImageImportTool:
             num_files = len([f for f in os.listdir(person_path) 
                            if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp'))])
             self.person_info_label.config(text=f"👤 {person}\n📸 Images: {num_files}")
+        
+    def view_student_data(self):
+        """Open a window to view all student data"""
+        # Create a new window
+        data_window = tk.Toplevel(self.root)
+        data_window.title("📊 All Student Data")
+        data_window.geometry("600x500")
+        data_window.minsize(500, 300)
+        
+        # Configure window
+        data_window.configure(bg=self.BG_COLOR)
+        
+        # Title
+        title_label = tk.Label(data_window, text="📊 All Currently Added Students", 
+                              font=("Arial", 14, "bold"), bg=self.BG_COLOR, fg="#1565C0")
+        title_label.pack(pady=10)
+        
+        # Get all students data
+        students_data = []
+        total_images = 0
+        
+        if os.path.exists(self.faces_dir):
+            for person in sorted(os.listdir(self.faces_dir)):
+                person_path = os.path.join(self.faces_dir, person)
+                if os.path.isdir(person_path):
+                    images = [f for f in os.listdir(person_path) 
+                             if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp'))]
+                    num_images = len(images)
+                    students_data.append((person, num_images))
+                    total_images += num_images
+        
+        # Create scrollable frame with Treeview
+        frame = tk.Frame(data_window, bg=self.BG_COLOR)
+        frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Create Treeview for better table display
+        columns = ("Name", "Images")
+        tree = ttk.Treeview(frame, columns=columns, height=15, show='headings')
+        
+        # Define column headings and widths
+        tree.heading('Name', text='Student Name')
+        tree.heading('Images', text='Face Images')
+        tree.column('Name', width=400, anchor=tk.W)
+        tree.column('Images', width=100, anchor=tk.CENTER)
+        
+        # Add data to tree
+        for idx, (name, count) in enumerate(students_data, 1):
+            tree.insert('', tk.END, values=(name, count))
+        
+        # Add scrollbar
+        scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=tree.yview)
+        tree.configure(yscroll=scrollbar.set)
+        tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Summary frame
+        summary_frame = tk.Frame(data_window, bg=self.BG_COLOR)
+        summary_frame.pack(fill=tk.X, padx=10, pady=10)
+        
+        summary_text = f"Total Students: {len(students_data)} | Total Images: {total_images}"
+        summary_label = tk.Label(summary_frame, text=summary_text, 
+                                font=("Arial", 10, "bold"), bg=self.BG_COLOR, 
+                                fg=self.PRIMARY_COLOR)
+        summary_label.pack(anchor=tk.W)
+        
+        # Close button
+        close_btn = tk.Button(data_window, text="Close", command=data_window.destroy,
+                             bg=self.PRIMARY_COLOR, fg="white",
+                             font=("Arial", 9, "bold"), relief=tk.RAISED)
+        close_btn.pack(pady=10, fill=tk.X, padx=10)
         
     def create_new_person(self):
         """Create a new person"""
