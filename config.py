@@ -100,6 +100,28 @@ FACE_CASCADE_PATH = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml
 EYE_CASCADE_PATH = cv2.data.haarcascades + 'haarcascade_eye.xml'
 
 # ============================================================================
+# Performance Optimization Settings (NEW)
+# ============================================================================
+# Dashboard polling interval (milliseconds)
+DASHBOARD_UPDATE_INTERVAL = 5000  # 5 seconds
+
+# Cache settings
+CACHE_ENABLED = True
+CACHE_EXPIRY_SECONDS = 600  # 10 minutes
+IMAGE_CACHE_MAX_MB = 500    # Max memory for image cache
+BATCH_IMAGE_LOAD = True     # Load images in batches
+
+# Smart polling settings
+SMART_POLLING_ENABLED = True
+IDLE_TIMEOUT_SECONDS = 300  # 5 minutes
+MAX_POLLING_INTERVAL = 30000  # 30 seconds when idle
+MIN_POLLING_INTERVAL = 2000   # 2 seconds minimum
+
+# Memory management
+ENABLE_GARBAGE_COLLECTION = True
+WEAK_REFERENCES_FOR_CACHE = True
+
+# ============================================================================
 # Export Settings
 # ============================================================================
 EXPORT_DATE_FORMAT = "%Y-%m-%d"

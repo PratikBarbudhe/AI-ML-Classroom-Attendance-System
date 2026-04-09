@@ -11,6 +11,7 @@ import logging
 import csv
 from camera_utils import open_camera, test_camera_frame
 from attendance_utils import AttendanceStore
+from optimized_attendance import get_optimized_attendance_store
 
 logging.basicConfig(
     level=logging.INFO,
@@ -59,7 +60,7 @@ class FaceRecognitionAppSimplified:
         self.faces_dir = os.path.join(self.data_dir, "faces")
         self.model_path = os.path.join(self.data_dir, "models", "face_model.pkl")
         self.students_csv = os.path.join(self.data_dir, "students.csv")
-        self.attendance_store = AttendanceStore()
+        self.attendance_store = get_optimized_attendance_store()  # Use optimized store with caching
         
         # Create directories if they don't exist
         os.makedirs(self.faces_dir, exist_ok=True)
@@ -437,9 +438,9 @@ class FaceRecognitionAppSimplified:
             self.status_label.config(text="❌ No trained model found. Capture samples and train the model.", fg="red")
 
     def update_attendance_dashboard(self):
-        """Refresh attendance statistics"""
+        """Refresh attendance statistics with optimized caching and adaptive polling"""
         try:
-            summary = self.attendance_store.get_today_summary()
+            summary = self.attendance_store.get_today_summary(use_cache=True)
             self.total_events_label.config(text=f"Today's events: {summary['total_events']}")
             self.unique_people_label.config(text=f"Unique people: {summary['unique_people']}")
             last_event = summary["last_event"]
@@ -455,7 +456,9 @@ class FaceRecognitionAppSimplified:
         except Exception:
             LOGGER.exception("Failed to update attendance dashboard")
 
-        self.root.after(5000, self.update_attendance_dashboard)
+        # Get adaptive polling interval (faster when active, slower when idle)
+        polling_interval = self.attendance_store.get_adaptive_polling_interval()
+        self.root.after(polling_interval, self.update_attendance_dashboard)
 
     def mark_attendance_event(self, person_name, confidence):
         """Mark attendance with cooldown"""

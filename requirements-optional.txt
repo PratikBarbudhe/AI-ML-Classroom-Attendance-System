@@ -1,0 +1,11 @@
+# Core Requirements (Already installed)
+opencv-python
+opencv-contrib-python
+Pillow
+numpy
+
+# Optional Requirements for Performance Monitoring Dashboard
+# Install with: pip install -r requirements-optional.txt
+
+psutil>=5.9.0  # Usage for system resource monitoring (CPU, memory)
+Tkinter         # Already included with Python
