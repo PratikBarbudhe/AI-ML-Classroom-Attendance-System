@@ -93,7 +93,7 @@ class AttendanceStore:
         
         Args:
             person_name: Name of the person
-            confidence: Confidence score of recognition (0-1)
+            confidence: Confidence score of recognition (0-1 normalized, or raw LBPH distance 0-100)
             source: Source of attendance (uses config default if None)
             min_interval_seconds: Minimum seconds between marking (uses config default if None)
         
@@ -113,9 +113,22 @@ class AttendanceStore:
         
         try:
             confidence = float(confidence)
-            if not 0 <= confidence <= 1:
-                logger.warning(f"Confidence out of range: {confidence}")
-                confidence = max(0, min(1, confidence))
+            
+            # ✅ PROPER LBPH CONFIDENCE NORMALIZATION
+            if confidence > 1:
+                # Raw LBPH distance score (typically 0-100)
+                # LBPH returns distance where LOWER is better
+                # Convert to confidence where HIGHER is better
+                original_distance = confidence
+                lbph_max_distance = config.LBPH_MAX_DISTANCE
+                confidence = max(0, min(1, 1 - (confidence / lbph_max_distance)))
+                logger.debug(f"Converted LBPH distance {original_distance:.2f} to normalized confidence: {confidence:.2%}")
+            elif confidence < 0:
+                # Negative values - clip to 0
+                confidence = 0
+                logger.warning(f"Negative confidence value clipped to 0")
+            # else: confidence is already in 0-1 range, keep as is
+            
         except (ValueError, TypeError):
             logger.warning(f"Invalid confidence value: {confidence}")
             return False, "Invalid confidence value"
@@ -156,7 +169,7 @@ class AttendanceStore:
                     (person_name, now_iso, confidence, source),
                 )
                 conn.commit()
-                logger.info(f"Attendance marked for {person_name} (confidence: {confidence:.2f})")
+                logger.info(f"Attendance marked for {person_name} (confidence: {confidence:.2%})")
                 return True, f"Attendance marked for {person_name}"
             
             except sqlite3.Error as e:

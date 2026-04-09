@@ -122,6 +122,38 @@ ENABLE_GARBAGE_COLLECTION = True
 WEAK_REFERENCES_FOR_CACHE = True
 
 # ============================================================================
+# Confidence Conversion Settings (LBPH Normalization)
+# ============================================================================
+LBPH_MAX_DISTANCE = 100    # LBPH recognizer max distance threshold
+LBPH_GOOD_MATCH_THRESHOLD = 75  # LBPH distance for confident match
+
+def normalize_lbph_confidence(lbph_distance):
+    """
+    Convert LBPH distance score to normalized confidence (0-1).
+    
+    LBPH returns distance where:
+      - Lower = Better match
+      - Higher = Worse match
+    
+    This converts to:
+      - Higher = Better confidence (0-1)
+      - Lower = Worse confidence
+    
+    Args:
+        lbph_distance: Raw LBPH distance (typically 0-100+)
+    
+    Returns:
+        Normalized confidence (0.0 to 1.0)
+    
+    Examples:
+        normalize_lbph_confidence(0)   → 1.0 (perfect match / 100% confident)
+        normalize_lbph_confidence(50)  → 0.5 (moderate match / 50% confident)
+        normalize_lbph_confidence(75)  → 0.25 (poor match / 25% confident)
+        normalize_lbph_confidence(100) → 0.0 (no match / 0% confident)
+    """
+    return max(0, min(1, 1 - (lbph_distance / LBPH_MAX_DISTANCE)))
+
+# ============================================================================
 # Export Settings
 # ============================================================================
 EXPORT_DATE_FORMAT = "%Y-%m-%d"
